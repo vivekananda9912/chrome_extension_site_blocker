@@ -157,7 +157,201 @@ async function writeLogToFirestore(payload) {
     if (!res.ok) {
       console.warn('Firestore write failed', res.status, await res.text());
     }
-  } catch (e) { }
+  } catch (e) {}
+}
+
+function hashString(value) {
+  let hash = 5381;
+  const text = String(value || '');
+  for (let i = 0; i < text.length; i++) {
+    hash = ((hash << 5) + hash) ^ text.charCodeAt(i);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function sanitizeFirestoreDocId(value) {
+  return String(value || '')
+    .trim()
+    .replace(/[^a-z0-9_-]+/gi, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 80) || 'unknown';
+}
+
+function getCodeHelpRequestId({ classCode, rollNumber, pageUrl }) {
+  return [
+    sanitizeFirestoreDocId(classCode),
+    sanitizeFirestoreDocId(rollNumber),
+    hashString(pageUrl)
+  ].join('_');
+}
+
+function buildFirestoreFields(data) {
+  const fields = {};
+
+  Object.entries(data).forEach(([key, value]) => {
+    if (value === undefined || value === null) return;
+    if (typeof value === 'boolean') {
+      fields[key] = { booleanValue: value };
+    } else if (typeof value === 'number') {
+      fields[key] = Number.isInteger(value) ? { integerValue: String(value) } : { doubleValue: value };
+    } else if (value instanceof Date) {
+      fields[key] = { timestampValue: value.toISOString() };
+    } else {
+      fields[key] = { stringValue: String(value) };
+    }
+  });
+
+  return fields;
+}
+
+function firestoreValueToJs(value) {
+  if (!value || typeof value !== 'object') return undefined;
+  if ('stringValue' in value) return value.stringValue;
+  if ('booleanValue' in value) return Boolean(value.booleanValue);
+  if ('integerValue' in value) return Number(value.integerValue);
+  if ('doubleValue' in value) return Number(value.doubleValue);
+  if ('timestampValue' in value) return value.timestampValue;
+  return undefined;
+}
+
+function firestoreFieldsToJs(fields = {}) {
+  return Object.fromEntries(
+    Object.entries(fields).map(([key, value]) => [key, firestoreValueToJs(value)])
+  );
+}
+
+async function saveStudentCodeHelpRequest(payload) {
+  if (!self.CONFIG || !self.CONFIG.FIREBASE) {
+    return { success: false, message: 'Firebase is not configured.' };
+  }
+
+  const accessToken = await getFirebaseAccessToken();
+  if (!accessToken) {
+    return { success: false, message: 'Unable to authenticate with Firebase.' };
+  }
+
+  const projectId = self.CONFIG.FIREBASE.projectId;
+  const requestId = getCodeHelpRequestId(payload);
+  const endpoint = `${self.CONFIG.FIREBASE.rest.firestoreBase}/projects/${projectId}/databases/(default)/documents/codeHelpRequests/${encodeURIComponent(requestId)}`;
+  const now = new Date();
+  const fields = buildFirestoreFields({
+    requestId,
+    status: 'student_requested_help',
+    classCode: payload.classCode,
+    rollNumber: payload.rollNumber,
+    pcCode: payload.pcCode,
+    deviceId: payload.deviceId,
+    pageUrl: payload.pageUrl,
+    pageTitle: payload.pageTitle,
+    studentCode: payload.code,
+    updatedAt: now,
+    lastStudentSentAt: now
+  });
+
+  console.log('[site-blocker] saveStudentCodeHelpRequest writing Firestore document', {
+    requestId,
+    classCode: payload.classCode,
+    rollNumber: payload.rollNumber,
+    pageUrl: payload.pageUrl,
+    codeLength: String(payload.code || '').length,
+  });
+
+  const updateMask = Object.keys(fields)
+    .map((field) => `updateMask.fieldPaths=${encodeURIComponent(field)}`)
+    .join('&');
+  const res = await fetch(`${endpoint}?${updateMask}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`
+    },
+    body: JSON.stringify({ fields }),
+    keepalive: true
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.warn('[site-blocker] saveStudentCodeHelpRequest Firestore write failed', res.status, errorText);
+    return { success: false, message: 'Firestore write failed.' };
+  }
+
+  await writeLogToFirestore({
+    url: payload.pageUrl,
+    title: 'W3Schools Code Help Request',
+    allowed: true,
+    classCode: payload.classCode,
+    rollNumber: payload.rollNumber,
+    pcCode: payload.pcCode,
+    deviceId: payload.deviceId,
+    prompt: `W3Schools code help requested for ${payload.pageTitle || payload.pageUrl}`,
+    ts: Date.now()
+  });
+
+  console.log('[site-blocker] saveStudentCodeHelpRequest Firestore write complete', { requestId });
+  return { success: true, requestId };
+}
+
+async function fetchTeacherCodeHelpResponse(payload) {
+  if (!self.CONFIG || !self.CONFIG.FIREBASE) {
+    return { success: false, message: 'Firebase is not configured.' };
+  }
+
+  const accessToken = await getFirebaseAccessToken();
+  if (!accessToken) {
+    return { success: false, message: 'Unable to authenticate with Firebase.' };
+  }
+
+  const projectId = self.CONFIG.FIREBASE.projectId;
+  const requestId = getCodeHelpRequestId(payload);
+  const endpoint = `${self.CONFIG.FIREBASE.rest.firestoreBase}/projects/${projectId}/databases/(default)/documents/codeHelpRequests/${encodeURIComponent(requestId)}`;
+
+  console.log('[site-blocker] fetchTeacherCodeHelpResponse reading Firestore document', {
+    requestId,
+    classCode: payload.classCode,
+    rollNumber: payload.rollNumber,
+    pageUrl: payload.pageUrl,
+  });
+
+  const res = await fetch(endpoint, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`
+    }
+  });
+
+  if (res.status === 404) {
+    console.log('[site-blocker] fetchTeacherCodeHelpResponse no request document found', { requestId });
+    return { success: false, message: 'No code request found for this page yet.' };
+  }
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.warn('[site-blocker] fetchTeacherCodeHelpResponse Firestore read failed', res.status, errorText);
+    return { success: false, message: 'Firestore read failed.' };
+  }
+
+  const data = await res.json();
+  const fields = firestoreFieldsToJs(data.fields);
+  const teacherCode = fields.teacherCode || fields.modifiedCode || fields.teacherModifiedCode || '';
+
+  console.log('[site-blocker] fetchTeacherCodeHelpResponse read complete', {
+    requestId,
+    hasTeacherCode: Boolean(String(teacherCode || '').trim()),
+    teacherCodeLength: String(teacherCode || '').length,
+    status: fields.status || '',
+  });
+
+  if (!String(teacherCode || '').trim()) {
+    return { success: false, message: 'Teacher has not added modified code yet.', requestId };
+  }
+
+  return {
+    success: true,
+    requestId,
+    code: teacherCode,
+    status: fields.status || '',
+    updatedAt: fields.updatedAt || ''
+  };
 }
 
 /**
@@ -421,6 +615,71 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       console.log(`[site-blocker] logAiPrompt Firestore write requested for ${siteName}`);
       sendResponse({ success: true });
+    } else if (message && message.type === "submitStudentCode") {
+      const code = String(message.code || '');
+      const pageUrl = String(message.pageUrl || sender?.tab?.url || '').trim();
+      const pageTitle = String(message.pageTitle || sender?.tab?.title || '').trim();
+
+      console.log('[site-blocker] submitStudentCode received', {
+        pageUrl,
+        pageTitle,
+        codeLength: code.length,
+      });
+
+      if (!code.trim()) {
+        sendResponse({ success: false, message: 'No code provided' });
+        return;
+      }
+
+      const deviceId = await getOrCreateDeviceId();
+      const { pcCode = '' } = await chrome.storage.local.get('pcCode');
+      const { studentInfo = {} } = await chrome.storage.local.get('studentInfo');
+      const classCode = String(studentInfo.classCode || '').trim();
+      const rollNumber = String(studentInfo.rollNumber || '').trim();
+
+      if (!classCode || !rollNumber) {
+        console.warn('[site-blocker] submitStudentCode skipped: missing class or roll', {
+          hasClassCode: Boolean(classCode),
+          hasRollNumber: Boolean(rollNumber),
+        });
+        sendResponse({ success: false, message: 'Set class code and roll number first.' });
+        return;
+      }
+
+      const result = await saveStudentCodeHelpRequest({
+        code,
+        pageUrl,
+        pageTitle,
+        classCode,
+        rollNumber,
+        pcCode,
+        deviceId,
+      });
+      sendResponse(result);
+    } else if (message && message.type === "fetchTeacherCode") {
+      const pageUrl = String(message.pageUrl || sender?.tab?.url || '').trim();
+
+      console.log('[site-blocker] fetchTeacherCode received', { pageUrl });
+
+      const { studentInfo = {} } = await chrome.storage.local.get('studentInfo');
+      const classCode = String(studentInfo.classCode || '').trim();
+      const rollNumber = String(studentInfo.rollNumber || '').trim();
+
+      if (!classCode || !rollNumber) {
+        console.warn('[site-blocker] fetchTeacherCode skipped: missing class or roll', {
+          hasClassCode: Boolean(classCode),
+          hasRollNumber: Boolean(rollNumber),
+        });
+        sendResponse({ success: false, message: 'Set class code and roll number first.' });
+        return;
+      }
+
+      const result = await fetchTeacherCodeHelpResponse({
+        pageUrl,
+        classCode,
+        rollNumber,
+      });
+      sendResponse(result);
     } else {
       sendResponse(undefined);
     }

@@ -8,6 +8,7 @@ if (!document.body) {
       initChatGptPromptLogger();
       initCopilotPromptLogger();
       initGeminiPromptLogger();
+      initW3SchoolsCodeHelp();
     }
   });
   observer.observe(document.documentElement, { childList: true, subtree: true });
@@ -16,6 +17,7 @@ if (!document.body) {
   initChatGptPromptLogger();
   initCopilotPromptLogger();
   initGeminiPromptLogger();
+  initW3SchoolsCodeHelp();
 }
 
 function initFab() {
@@ -62,6 +64,12 @@ function initFab() {
     <button id="saveBtn">Update</button>
     <button id="clearBtn" class="clear-btn">Clear</button>
     <button id="toggleFabPositionBtn" type="button">Move to Left</button>
+    <div id="w3schoolsCodeHelpSection" class="panel-section code-help-section" hidden>
+      <strong>W3Schools editor</strong>
+      <button id="shareCodeHelpBtn" type="button">Ask teacher for help</button>
+      <button id="fetchTeacherCodeBtn" type="button">Load teacher code</button>
+      <div id="codeHelpStatus" class="field-help"></div>
+    </div>
   `;
   document.body.appendChild(panel);
 
@@ -343,6 +351,187 @@ const SPOKEN_GRAMMAR_PREFIX = [
 
 function buildGrammarPrompt(userPrompt) {
   return `${SPOKEN_GRAMMAR_PREFIX}\n${userPrompt}`;
+}
+
+// ============================================================
+// W3Schools Try editor code help
+// ============================================================
+function initW3SchoolsCodeHelp() {
+  if (!isW3SchoolsTryEditorPage()) return;
+  if (window.__labPolicyW3SchoolsCodeHelpInitialized) return;
+  window.__labPolicyW3SchoolsCodeHelpInitialized = true;
+
+  console.debug('[site-blocker] W3Schools code help initializing', {
+    url: window.location.href,
+  });
+
+  function isExtensionContextAvailable() {
+    return typeof chrome !== 'undefined' && Boolean(chrome.runtime?.id);
+  }
+
+  function getCodeMirrorEditor() {
+    const wrapper = document.getElementById('textareawrapper');
+    const codeMirrorEl = wrapper?.querySelector('.CodeMirror');
+    return codeMirrorEl?.CodeMirror || window.editor || null;
+  }
+
+  function readW3SchoolsCode() {
+    const editor = getCodeMirrorEditor();
+    if (editor && typeof editor.getValue === 'function') {
+      const code = editor.getValue();
+      console.debug('[site-blocker] W3Schools code read from CodeMirror instance', {
+        length: code.length,
+      });
+      return code;
+    }
+
+    const codeEl = document.querySelector('#textareawrapper .CodeMirror-code');
+    const code = Array.from(codeEl?.querySelectorAll('pre') || [])
+      .map((line) => line.innerText)
+      .join('\n');
+    console.debug('[site-blocker] W3Schools code read from CodeMirror DOM fallback', {
+      length: code.length,
+      foundCodeElement: Boolean(codeEl),
+    });
+    return code;
+  }
+
+  function writeW3SchoolsCode(code) {
+    const editor = getCodeMirrorEditor();
+    if (editor && typeof editor.setValue === 'function') {
+      editor.setValue(code);
+      editor.focus?.();
+      console.debug('[site-blocker] W3Schools teacher code loaded into CodeMirror instance', {
+        length: code.length,
+      });
+      return true;
+    }
+
+    const textarea = document.querySelector('#textareawrapper textarea');
+    if (!textarea) {
+      console.warn('[site-blocker] W3Schools editor write failed: textarea not found');
+      return false;
+    }
+
+    textarea.value = code;
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    textarea.dispatchEvent(new Event('change', { bubbles: true }));
+    console.debug('[site-blocker] W3Schools teacher code loaded into textarea fallback', {
+      length: code.length,
+    });
+    return true;
+  }
+
+  function setStatus(message) {
+    const statusEl = document.getElementById('codeHelpStatus');
+    if (statusEl) statusEl.textContent = message;
+  }
+
+  function preparePanel() {
+    const section = document.getElementById('w3schoolsCodeHelpSection');
+    const shareBtn = document.getElementById('shareCodeHelpBtn');
+    const fetchBtn = document.getElementById('fetchTeacherCodeBtn');
+    if (!section || !shareBtn || !fetchBtn) return false;
+
+    section.hidden = false;
+
+    shareBtn.addEventListener('click', async () => {
+      console.debug('[site-blocker] W3Schools share code button clicked');
+      if (!isExtensionContextAvailable()) {
+        console.warn('[site-blocker] W3Schools share aborted: extension context invalidated');
+        alert('Extension was reloaded. Refresh this page and try again.');
+        return;
+      }
+
+      const code = readW3SchoolsCode();
+      if (!code.trim()) {
+        console.debug('[site-blocker] W3Schools share skipped: empty editor code');
+        setStatus('No code found in editor.');
+        return;
+      }
+
+      shareBtn.disabled = true;
+      setStatus('Sending code...');
+      try {
+        console.debug('[site-blocker] W3Schools sending code to background', {
+          url: window.location.href,
+          title: document.title,
+          codeLength: code.length,
+        });
+        const response = await chrome.runtime.sendMessage({
+          type: 'submitStudentCode',
+          code,
+          pageUrl: window.location.href,
+          pageTitle: document.title,
+        });
+        console.debug('[site-blocker] W3Schools send code response', response);
+        setStatus(response?.success ? 'Code sent to teacher.' : (response?.message || 'Unable to send code.'));
+      } catch (error) {
+        console.warn('[site-blocker] W3Schools send code failed', error);
+        setStatus('Unable to send code.');
+      } finally {
+        shareBtn.disabled = false;
+      }
+    });
+
+    fetchBtn.addEventListener('click', async () => {
+      console.debug('[site-blocker] W3Schools fetch teacher code button clicked');
+      if (!isExtensionContextAvailable()) {
+        console.warn('[site-blocker] W3Schools fetch aborted: extension context invalidated');
+        alert('Extension was reloaded. Refresh this page and try again.');
+        return;
+      }
+
+      fetchBtn.disabled = true;
+      setStatus('Checking for teacher code...');
+      try {
+        console.debug('[site-blocker] W3Schools requesting teacher code from background', {
+          url: window.location.href,
+        });
+        const response = await chrome.runtime.sendMessage({
+          type: 'fetchTeacherCode',
+          pageUrl: window.location.href,
+        });
+        console.debug('[site-blocker] W3Schools teacher code response', response);
+        if (!response?.success) {
+          setStatus(response?.message || 'No teacher code found yet.');
+          return;
+        }
+
+        if (!writeW3SchoolsCode(String(response.code || ''))) {
+          setStatus('Editor not ready. Refresh and try again.');
+          return;
+        }
+
+        setStatus('Teacher code loaded.');
+      } catch (error) {
+        console.warn('[site-blocker] W3Schools fetch teacher code failed', error);
+        setStatus('Unable to load teacher code.');
+      } finally {
+        fetchBtn.disabled = false;
+      }
+    });
+
+    return true;
+  }
+
+  if (preparePanel()) return;
+
+  const observer = new MutationObserver(() => {
+    if (preparePanel()) observer.disconnect();
+  });
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+}
+
+function isW3SchoolsTryEditorPage() {
+  try {
+    const url = new URL(window.location.href);
+    return url.hostname === 'www.w3schools.com' &&
+      /^\/[^/]+\/[^/]+\.asp$/i.test(url.pathname) &&
+      url.searchParams.has('filename');
+  } catch (error) {
+    return false;
+  }
 }
 
 // ============================================================

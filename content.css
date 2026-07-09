@@ -97,6 +97,15 @@
   gap: 6px;
 }
 
+#labClassPanel [hidden] {
+  display: none !important;
+}
+
+#labClassPanel .code-help-section {
+  padding-top: 4px;
+  border-top: 1px solid #e5edf3;
+}
+
 #labClassPanel .whitelist-links {
   max-height: 160px;
   overflow-y: auto;
@@ -172,6 +181,11 @@
 
 #labClassPanel button:hover {
   background: #2980b9;
+}
+
+#labClassPanel button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 
 #labClassPanel .clear-btn {
