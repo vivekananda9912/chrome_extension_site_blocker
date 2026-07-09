@@ -755,12 +755,12 @@ function isAllowed(url, whitelist) {
 
 // Log visit
 async function logVisit(url, title, tabId, allowed) {
-  // Do not log new tab pages
   if (
     url.includes('new-tab-page') || 
     url.includes('newtab') || 
     url.startsWith('chrome://') || 
     url.startsWith('edge://') || 
+    url.startsWith('file://') || 
     (title && title.toLowerCase() === 'new tab')
   ) {
     return;
@@ -814,6 +814,7 @@ chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
     details.url.startsWith('chrome://') || 
     details.url.startsWith('edge://') || 
     details.url.startsWith('about:') ||
+    details.url.startsWith('file://') ||
     details.url.includes('new-tab-page') ||
     details.url.includes('newtab')
   ) {
@@ -845,6 +846,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     tab.url.startsWith('chrome://') || 
     tab.url.startsWith('edge://') || 
     tab.url.startsWith('about:') ||
+    tab.url.startsWith('file://') ||
     tab.url.includes('new-tab-page') ||
     tab.url.includes('newtab')
   ) return;
