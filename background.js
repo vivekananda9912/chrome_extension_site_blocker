@@ -1,6 +1,6 @@
 // background.js
 // Load shared config into the service worker
-try { importScripts('config.js'); } catch (e) {}
+try { importScripts('config.js'); } catch (e) { }
 // Using Firebase REST only for Firestore writes (no SDK loaded)
 const MAX_LOGS = 10000;
 // Load CONFIG if available (from config.js)
@@ -360,10 +360,10 @@ async function fetchTeacherCodeHelpResponse(payload) {
  */
 async function fetchClassWishlist(classCode) {
   if (!classCode) return [];
-  
+
   const accessToken = await getFirebaseAccessToken();
   if (!accessToken || !self.CONFIG || !self.CONFIG.FIREBASE) return [];
-  
+
   try {
     const projectId = self.CONFIG.FIREBASE.projectId;
     // Query the classes collection for the document with the matching code field
@@ -423,22 +423,22 @@ async function getCombinedWhitelist() {
   // Get local admin whitelist
   const { whitelist = [] } = await chrome.storage.local.get('whitelist');
   let combined = [...whitelist];
-  
+
   // Add required rules
   if (self.CONFIG && Array.isArray(self.CONFIG.REQUIRED_RULES)) {
     combined = [...combined, ...self.CONFIG.REQUIRED_RULES];
   }
-  
+
   // Get student's class code and fetch their class wishlist
   const { studentInfo = {} } = await chrome.storage.local.get('studentInfo');
   if (studentInfo.classCode) {
     // Check cache first (valid for 5 minutes)
     const { classWishlistCache } = await chrome.storage.local.get('classWishlistCache');
     const now = Date.now();
-    
-    if (classWishlistCache && 
-        classWishlistCache.classCode === studentInfo.classCode && 
-        classWishlistCache.timestamp > now - 5 * 60 * 1000) {
+
+    if (classWishlistCache &&
+      classWishlistCache.classCode === studentInfo.classCode &&
+      classWishlistCache.timestamp > now - 5 * 60 * 1000) {
       // Use cached wishlist
       console.log('[getCombinedWhitelist] Using cached wishlist');
       combined = [...combined, ...classWishlistCache.wishlist];
@@ -447,7 +447,7 @@ async function getCombinedWhitelist() {
       console.log('[getCombinedWhitelist] Fetching wishlist for class:', studentInfo.classCode);
       const classWishlist = await fetchClassWishlist(studentInfo.classCode);
       combined = [...combined, ...classWishlist];
-      
+
       // Cache the result
       await chrome.storage.local.set({
         classWishlistCache: {
@@ -493,7 +493,7 @@ chrome.runtime.onInstalled.addListener(async () => {
     if (backendBase) {
       chrome.runtime.setUninstallURL(`${backendBase}/uninstalled?id=${encodeURIComponent(id)}`);
     }
-  } catch (e) {}
+  } catch (e) { }
 
   // Create repeating heartbeat alarm
   chrome.alarms.create("heartbeat", { periodInMinutes: HEARTBEAT_MINUTES });
@@ -755,6 +755,16 @@ function isAllowed(url, whitelist) {
 
 // Log visit
 async function logVisit(url, title, tabId, allowed) {
+  // Do not log new tab pages
+  if (
+    url.includes('new-tab-page') || 
+    url.includes('newtab') || 
+    url.startsWith('chrome://') || 
+    url.startsWith('edge://') || 
+    (title && title.toLowerCase() === 'new tab')
+  ) {
+    return;
+  }
   const timestamp = new Date().toISOString();
 
   try {
@@ -798,8 +808,15 @@ async function logVisit(url, title, tabId, allowed) {
 chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
   if (details.frameId !== 0) return; // only main-frame
 
-  // Ignore navigation to the extension's own URLs and the new tab page
-  if (details.url.startsWith(chrome.runtime.getURL('')) || details.url === "chrome://new-tab-page-third-party/") {
+  // Ignore navigation to the extension's own URLs and browser internal pages
+  if (
+    details.url.startsWith(chrome.runtime.getURL('')) || 
+    details.url.startsWith('chrome://') || 
+    details.url.startsWith('edge://') || 
+    details.url.startsWith('about:') ||
+    details.url.includes('new-tab-page') ||
+    details.url.includes('newtab')
+  ) {
     return;
   }
 
@@ -824,7 +841,13 @@ chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status !== 'complete' || !tab.url) return;
   if (tab.url.startsWith(chrome.runtime.getURL(''))) return;
-  if (tab.url.startsWith('chrome://')) return;
+  if (
+    tab.url.startsWith('chrome://') || 
+    tab.url.startsWith('edge://') || 
+    tab.url.startsWith('about:') ||
+    tab.url.includes('new-tab-page') ||
+    tab.url.includes('newtab')
+  ) return;
   try {
     console.log('[LabPolicy] tabs.onUpdated complete', tab.url);
     const whitelist = await getCombinedWhitelist();
@@ -833,5 +856,5 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       chrome.tabs.update(tabId, { url: chrome.runtime.getURL('blocked.html') + '?orig=' + encodeURIComponent(tab.url) });
     }
     logVisit(tab.url, tab.title || 'Untitled', tabId, allowed);
-  } catch (e) {}
+  } catch (e) { }
 });
