@@ -131,19 +131,21 @@ async function writeLogToFirestore(payload) {
   if (!accessToken) return;
   const projectId = self.CONFIG.FIREBASE.projectId;
   const endpoint = `${self.CONFIG.FIREBASE.rest.firestoreBase}/projects/${projectId}/databases/(default)/documents/logs`;
-  const doc = {
-    fields: {
-      url: { stringValue: String(payload.url || '') },
-      title: { stringValue: String(payload.title || '') },
-      allowed: { booleanValue: !!payload.allowed },
-      classCode: { stringValue: String(payload.classCode || '') },
-      rollNumber: { stringValue: String(payload.rollNumber || '') },
-      pcCode: { stringValue: String(payload.pcCode || '') },
-      deviceId: { stringValue: String(payload.deviceId || '') },
-      prompt: { stringValue: String(payload.prompt || '') },
-      ts: { timestampValue: new Date(payload.ts || Date.now()).toISOString() }
-    }
+  const fields = {
+    url: { stringValue: String(payload.url || '') },
+    title: { stringValue: String(payload.title || '') },
+    allowed: { booleanValue: !!payload.allowed },
+    classCode: { stringValue: String(payload.classCode || '') },
+    rollNumber: { stringValue: String(payload.rollNumber || '') },
+    pcCode: { stringValue: String(payload.pcCode || '') },
+    deviceId: { stringValue: String(payload.deviceId || '') },
+    prompt: { stringValue: String(payload.prompt || '') },
+    ts: { timestampValue: new Date(payload.ts || Date.now()).toISOString() }
   };
+  if (payload.studentCode !== undefined && payload.studentCode !== null) {
+    fields.studentCode = { stringValue: String(payload.studentCode) };
+  }
+  const doc = { fields };
   try {
     const res = await fetch(endpoint, {
       method: 'POST',
@@ -284,7 +286,8 @@ async function saveStudentCodeHelpRequest(payload) {
     pcCode: payload.pcCode,
     deviceId: payload.deviceId,
     prompt: `W3Schools code help requested for ${payload.pageTitle || payload.pageUrl}`,
-    ts: Date.now()
+    ts: Date.now(),
+    studentCode: payload.code
   });
 
   console.log('[site-blocker] saveStudentCodeHelpRequest Firestore write complete', { requestId });
