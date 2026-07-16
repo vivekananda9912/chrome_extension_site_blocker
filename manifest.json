@@ -50,7 +50,8 @@
       "resources": [
         "blocked.html",
         "blocked.js",
-        "content.css"
+        "content.css",
+        "homepage.html"
       ],
       "matches": ["<all_urls>"]
     }
