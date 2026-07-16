@@ -7,6 +7,7 @@ const CONFIG = {
   HEARTBEAT_MINUTES: 1,
   REQUIRED_RULES: [
     "chrome://extensions/",
+    "chrome-extension://"
   ],
   FIREBASE: {
     apiKey: "AIzaSyDR3Q-q1lornS8SjCMBNfcdCr6avx4tBm8",
