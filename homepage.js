@@ -31,7 +31,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (finalWhitelist.length === 0) {
             ul.innerHTML = '<li>No whitelisted websites found.</li>';
         } else {
-            // Sort alphabetically
             finalWhitelist.sort();
             ul.innerHTML = finalWhitelist.map(url => {
                 // Convert rule to valid href
@@ -39,7 +38,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!/^https?:\/\//i.test(href)) {
                     href = 'https://' + href.replace(/^\*\./, '').replace(/\/+$/, '');
                 }
-                return `<li><a href="${href}" target="_blank" style="color: inherit; text-decoration: none;">${url}</a></li>`;
+                
+                let domain = href;
+                try {
+                    domain = new URL(href).hostname;
+                } catch (e) {}
+
+                const faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
+
+                return `<li>
+                    <img src="${faviconUrl}" alt="" width="48" height="48" style="border-radius: 6px; flex-shrink: 0;">
+                    <a href="${href}" target="_blank" style="color: inherit; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${url}</a>
+                </li>`;
             }).join('');
         }
     });
