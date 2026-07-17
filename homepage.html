@@ -1,13 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Computer Lab Guidelines</title>
     <style>
         :root {
-            --primary: #1e3a8a; /* deep blue */
-            --secondary: #2563eb; /* blue */
+            --primary: #1e3a8a;
+            /* deep blue */
+            --secondary: #2563eb;
+            /* blue */
             --green: #16a34a;
             --purple: #7e22ce;
             --light-bg: #f8fafc;
@@ -41,8 +44,15 @@
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .header {
@@ -67,10 +77,18 @@
             justify-content: center;
             gap: 20px;
         }
-        
-        .header h2 span:nth-child(1) { color: var(--secondary); }
-        .header h2 span:nth-child(2) { color: var(--green); }
-        .header h2 span:nth-child(3) { color: var(--purple); }
+
+        .header h2 span:nth-child(1) {
+            color: var(--secondary);
+        }
+
+        .header h2 span:nth-child(2) {
+            color: var(--green);
+        }
+
+        .header h2 span:nth-child(3) {
+            color: var(--purple);
+        }
 
         .header p {
             font-size: 1.1rem;
@@ -97,7 +115,7 @@
 
         .card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.08);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
         }
 
         .card-icon {
@@ -119,17 +137,37 @@
         }
 
         /* Card Colors */
-        .card-1 { background-color: #eff6ff; }
-        .card-1 h3 { color: var(--primary); }
-        
-        .card-2 { background-color: #f0fdf4; }
-        .card-2 h3 { color: var(--green); }
-        
-        .card-3 { background-color: #fffbeb; }
-        .card-3 h3 { color: #d97706; }
-        
-        .card-4 { background-color: #faf5ff; }
-        .card-4 h3 { color: var(--purple); }
+        .card-1 {
+            background-color: #eff6ff;
+        }
+
+        .card-1 h3 {
+            color: var(--primary);
+        }
+
+        .card-2 {
+            background-color: #f0fdf4;
+        }
+
+        .card-2 h3 {
+            color: var(--green);
+        }
+
+        .card-3 {
+            background-color: #fffbeb;
+        }
+
+        .card-3 h3 {
+            color: #d97706;
+        }
+
+        .card-4 {
+            background-color: #faf5ff;
+        }
+
+        .card-4 h3 {
+            color: var(--purple);
+        }
 
         .whitelist-section {
             margin: 10px 40px 25px;
@@ -138,7 +176,7 @@
             background: #f8fafc;
             padding: 15px;
         }
-        
+
         .whitelist-title {
             font-size: 1.1rem;
             font-weight: bold;
@@ -161,12 +199,13 @@
             gap: 8px 20px;
             margin: 0;
             padding: 5px 10px;
-            color: #0284c7; /* blue links color */
+            color: #0284c7;
+            /* blue links color */
             font-family: monospace;
             font-size: 0.95rem;
             list-style: none;
         }
-        
+
         .whitelist-container li {
             margin-bottom: 0;
             display: flex;
@@ -225,7 +264,7 @@
         .citizen-icon {
             font-size: 2rem;
         }
-        
+
         .citizen-item p {
             font-size: 0.85rem;
             margin: 0;
@@ -250,33 +289,54 @@
             font-size: 1.1rem;
             letter-spacing: 1px;
         }
+
         .footer p {
             margin: 0;
-            color: #fcd34d; /* yellow */
+            color: #fcd34d;
+            /* yellow */
             font-weight: bold;
             font-size: 0.95rem;
         }
 
         @media (max-width: 768px) {
-            .grid-cards { grid-template-columns: 1fr; }
-            .citizens-grid { grid-template-columns: 1fr 1fr; }
-            .citizen-item:last-child { grid-column: 1 / -1; }
-            .header h1 { font-size: 2.5rem; }
-            .header h2 { font-size: 1.5rem; flex-direction: column; gap: 5px; }
+            .grid-cards {
+                grid-template-columns: 1fr;
+            }
+
+            .citizens-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .citizen-item:last-child {
+                grid-column: 1 / -1;
+            }
+
+            .header h1 {
+                font-size: 2.5rem;
+            }
+
+            .header h2 {
+                font-size: 1.5rem;
+                flex-direction: column;
+                gap: 5px;
+            }
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <!-- Header -->
         <div class="header">
             <h1>Computer Lab</h1>
             <h2>
-                <span>LEARN</span> &bull; 
-                <span>RESPECT</span> &bull; 
+                <span>LEARN</span> &bull;
+                <span>RESPECT</span> &bull;
                 <span>GROW</span>
             </h2>
-            <p>Our computer lab is a place for <strong style="color:var(--secondary)">learning</strong>, <strong style="color:var(--green)">creativity</strong> and <strong style="color:var(--purple)">responsible use</strong>.</p>
+            <p>Our computer lab is a place for <strong style="color:var(--secondary)">learning</strong>, <strong
+                    style="color:var(--green)">creativity</strong> and <strong style="color:var(--purple)">responsible
+                    use</strong>.</p>
         </div>
 
         <!-- Whitelist Section -->
@@ -289,6 +349,17 @@
             </div>
         </div>
 
+        <!-- Quiz Section -->
+        <div class="whitelist-section" id="quiz-section-container">
+            <div class="whitelist-title" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>Quiz</span>
+                <button id="fullscreen-btn" style="background: var(--primary); color: white; border: none; padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9rem;">Maximize / Fullscreen</button>
+            </div>
+            <div style="width: 100%; border-radius: 8px; overflow: hidden; border: 1px solid #cbd5e1; background: white; display: flex;" id="quiz-iframe-container">
+                <iframe id="quiz-iframe" data-src="https://practice.technikh.com/embed.html" width="100%" height="400" frameborder="0" style="border: none; flex-grow: 1; min-height: 400px;" title="Quiz" allowfullscreen></iframe>
+            </div>
+        </div>
+
         <!-- 4 Cards -->
         <div class="grid-cards">
             <div class="card card-1">
@@ -298,7 +369,7 @@
                     <p>All computer use is recorded and can be monitored by the teacher.</p>
                 </div>
             </div>
-            
+
             <div class="card card-2">
                 <div class="card-icon">🌐</div>
                 <div class="card-content">
@@ -311,7 +382,8 @@
                 <div class="card-icon">🤖</div>
                 <div class="card-content">
                     <h3>Use ChatGPT to Learn</h3>
-                    <p>Ask questions, get help, and explore topics like PowerPoint, ScratchJr, coding, digital literacy and more—where permitted.</p>
+                    <p>Ask questions, get help, and explore topics like PowerPoint, ScratchJr, coding, digital literacy
+                        and more—where permitted.</p>
                 </div>
             </div>
 
@@ -366,4 +438,5 @@
     <script src="config.js"></script>
     <script src="homepage.js"></script>
 </body>
+
 </html>
