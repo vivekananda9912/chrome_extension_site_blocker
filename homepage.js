@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
-    chrome.storage.local.get(['whitelist', 'classWishlistCache'], (result) => {
+    chrome.storage.local.get(['whitelist', 'classWishlistCache', 'studentInfo'], (result) => {
         let combined = [...(result.whitelist || [])];
 
         // Add class wishlist if available
@@ -38,11 +38,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!/^https?:\/\//i.test(href)) {
                     href = 'https://' + href.replace(/^\*\./, '').replace(/\/+$/, '');
                 }
-                
+
                 let domain = href;
                 try {
                     domain = new URL(href).hostname;
-                } catch (e) {}
+                } catch (e) { }
 
                 const faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
 
@@ -52,5 +52,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 </li>`;
             }).join('');
         }
+
+        // Update iframe URL with roll number if available
+        const iframe = document.getElementById('quiz-iframe');
+        if (iframe) {
+            let baseSrc = iframe.getAttribute('data-src');
+            if (baseSrc) {
+                if (result.studentInfo && result.studentInfo.rollNumber) {
+                    const rollNumber = encodeURIComponent(result.studentInfo.rollNumber);
+                    const sep = baseSrc.includes('?') ? '&' : '?';
+                    iframe.src = `${baseSrc}${sep}roll=${rollNumber}`;
+                } else {
+                    iframe.src = baseSrc;
+                }
+            }
+        }
     });
+
+    // Fullscreen logic for the quiz
+    const fullscreenBtn = document.getElementById('fullscreen-btn');
+    const quizIframe = document.getElementById('quiz-iframe');
+    if (fullscreenBtn && quizIframe) {
+        fullscreenBtn.addEventListener('click', () => {
+            if (quizIframe.requestFullscreen) {
+                quizIframe.requestFullscreen();
+            } else if (quizIframe.webkitRequestFullscreen) { /* Safari */
+                quizIframe.webkitRequestFullscreen();
+            } else if (quizIframe.msRequestFullscreen) { /* IE11 */
+                quizIframe.msRequestFullscreen();
+            }
+        });
+    }
 });
