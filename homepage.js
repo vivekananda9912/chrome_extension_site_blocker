@@ -53,19 +53,49 @@ document.addEventListener('DOMContentLoaded', () => {
             }).join('');
         }
 
-        // Update iframe URL with roll number if available
-        const iframe = document.getElementById('quiz-iframe');
-        if (iframe) {
-            let baseSrc = iframe.getAttribute('data-src');
-            if (baseSrc) {
-                if (result.studentInfo && result.studentInfo.rollNumber) {
-                    const rollNumber = encodeURIComponent(result.studentInfo.rollNumber);
-                    const sep = baseSrc.includes('?') ? '&' : '?';
-                    iframe.src = `${baseSrc}${sep}roll=${rollNumber}`;
-                } else {
-                    iframe.src = baseSrc;
+        // Helper to update iframe URL
+        function updateIframeSrc(info) {
+            const iframe = document.getElementById('quiz-iframe');
+            if (iframe) {
+                let baseSrc = iframe.getAttribute('data-src');
+                if (baseSrc) {
+                    let params = new URLSearchParams();
+                    if (info) {
+                        if (info.rollNumber) params.append('roll', info.rollNumber);
+                        if (info.classCode) params.append('grade', info.classCode);
+                    }
+                    const queryString = params.toString();
+                    if (queryString) {
+                        const sep = baseSrc.includes('?') ? '&' : '?';
+                        iframe.src = `${baseSrc}${sep}${queryString}`;
+                    } else {
+                        iframe.src = baseSrc;
+                    }
                 }
             }
+        }
+
+        // Initialize and update iframe
+        const classSelect = document.getElementById('homepage-class-select');
+        if (classSelect && result.studentInfo && result.studentInfo.classCode) {
+            classSelect.value = result.studentInfo.classCode;
+        }
+        updateIframeSrc(result.studentInfo);
+
+        // Handle class dropdown change
+        if (classSelect) {
+            classSelect.addEventListener('change', (e) => {
+                const newClassCode = e.target.value;
+                const currentInfo = result.studentInfo || {};
+                currentInfo.classCode = newClassCode;
+                chrome.storage.local.set({ studentInfo: currentInfo }, () => {
+                    updateIframeSrc(currentInfo);
+                    // Refresh whitelist in background and reload page to reflect changes
+                    chrome.runtime.sendMessage({ type: 'refreshWishlist', classCode: newClassCode }, () => {
+                        window.location.reload();
+                    });
+                });
+            });
         }
     });
 
