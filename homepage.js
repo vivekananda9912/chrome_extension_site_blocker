@@ -1,7 +1,84 @@
 document.addEventListener('DOMContentLoaded', () => {
     const ul = document.getElementById('whitelist-ul');
+    const iframe = document.getElementById('quiz-iframe');
+    const classSelect = document.getElementById('homepage-class-select');
+    const admissionInput = document.getElementById('homepage-admission-input');
+    const guardianPhoneInput = document.getElementById('homepage-guardian-phone-input');
+
+    // Helper to update iframe URL
+    function updateIframeSrc(info) {
+        if (iframe) {
+            let baseSrc = iframe.getAttribute('data-src');
+            if (baseSrc) {
+                let params = new URLSearchParams();
+                if (info) {
+                    if (info.rollNumber) params.append('roll', info.rollNumber);
+                    if (info.classCode) params.append('grade', info.classCode);
+                    if (info.admissionNumber) params.append('admission', info.admissionNumber);
+                    if (info.guardianPhone) params.append('phone', info.guardianPhone);
+                }
+                const queryString = params.toString();
+                if (queryString) {
+                    const sep = baseSrc.includes('?') ? '&' : '?';
+                    iframe.src = `${baseSrc}${sep}${queryString}`;
+                } else {
+                    iframe.src = baseSrc;
+                }
+            }
+        }
+    }
+
+    // Function to save student info to storage
+    function saveStudentInfo(updates) {
+        if (!chrome || !chrome.storage) {
+            updateIframeSrc(updates);
+            return;
+        }
+        chrome.storage.local.get(['studentInfo'], (result) => {
+            const currentInfo = result.studentInfo || {};
+            Object.assign(currentInfo, updates);
+            chrome.storage.local.set({ studentInfo: currentInfo }, () => {
+                updateIframeSrc(currentInfo);
+                // If classCode changed, we need to refresh wishlist and reload
+                if (updates.classCode !== undefined) {
+                    chrome.runtime.sendMessage({ type: 'refreshWishlist', classCode: updates.classCode }, () => {
+                        window.location.reload();
+                    });
+                }
+            });
+        });
+    }
+
+    // Always attach the event listener so it works even when testing locally
+    if (classSelect) {
+        classSelect.addEventListener('change', (e) => saveStudentInfo({ classCode: e.target.value }));
+    }
+    
+    if (admissionInput) {
+        admissionInput.addEventListener('blur', (e) => saveStudentInfo({ admissionNumber: e.target.value.trim() }));
+    }
+    
+    if (guardianPhoneInput) {
+        guardianPhoneInput.addEventListener('blur', (e) => saveStudentInfo({ guardianPhone: e.target.value.trim() }));
+    }
+
+    // Fullscreen logic for the quiz
+    const fullscreenBtn = document.getElementById('fullscreen-btn');
+    if (fullscreenBtn && iframe) {
+        fullscreenBtn.addEventListener('click', () => {
+            if (iframe.requestFullscreen) {
+                iframe.requestFullscreen();
+            } else if (iframe.webkitRequestFullscreen) { /* Safari */
+                iframe.webkitRequestFullscreen();
+            } else if (iframe.msRequestFullscreen) { /* IE11 */
+                iframe.msRequestFullscreen();
+            }
+        });
+    }
+
     if (!chrome || !chrome.storage) {
-        ul.innerHTML = '<li>Error: Cannot access extension storage.</li>';
+        if (ul) ul.innerHTML = '<li>Error: Cannot access extension storage.</li>';
+        updateIframeSrc(null); // Ensure iframe loads even when testing locally
         return;
     }
 
@@ -28,89 +105,44 @@ document.addEventListener('DOMContentLoaded', () => {
             !url.startsWith('edge://')
         );
 
-        if (finalWhitelist.length === 0) {
-            ul.innerHTML = '<li>No whitelisted websites found.</li>';
-        } else {
-            finalWhitelist.sort();
-            ul.innerHTML = finalWhitelist.map(url => {
-                // Convert rule to valid href
-                let href = url;
-                if (!/^https?:\/\//i.test(href)) {
-                    href = 'https://' + href.replace(/^\*\./, '').replace(/\/+$/, '');
-                }
-
-                let domain = href;
-                try {
-                    domain = new URL(href).hostname;
-                } catch (e) { }
-
-                const faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
-
-                return `<li>
-                    <img src="${faviconUrl}" alt="" width="48" height="48" style="border-radius: 6px; flex-shrink: 0;">
-                    <a href="${href}" target="_blank" style="color: inherit; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${url}</a>
-                </li>`;
-            }).join('');
-        }
-
-        // Helper to update iframe URL
-        function updateIframeSrc(info) {
-            const iframe = document.getElementById('quiz-iframe');
-            if (iframe) {
-                let baseSrc = iframe.getAttribute('data-src');
-                if (baseSrc) {
-                    let params = new URLSearchParams();
-                    if (info) {
-                        if (info.rollNumber) params.append('roll', info.rollNumber);
-                        if (info.classCode) params.append('grade', info.classCode);
+        if (ul) {
+            if (finalWhitelist.length === 0) {
+                ul.innerHTML = '<li>No whitelisted websites found.</li>';
+            } else {
+                finalWhitelist.sort();
+                ul.innerHTML = finalWhitelist.map(url => {
+                    // Convert rule to valid href
+                    let href = url;
+                    if (!/^https?:\/\//i.test(href)) {
+                        href = 'https://' + href.replace(/^\*\./, '').replace(/\/+$/, '');
                     }
-                    const queryString = params.toString();
-                    if (queryString) {
-                        const sep = baseSrc.includes('?') ? '&' : '?';
-                        iframe.src = `${baseSrc}${sep}${queryString}`;
-                    } else {
-                        iframe.src = baseSrc;
-                    }
-                }
+
+                    let domain = href;
+                    try {
+                        domain = new URL(href).hostname;
+                    } catch (e) { }
+
+                    const faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
+
+                    return `<li>
+                        <img src="${faviconUrl}" alt="" width="48" height="48" style="border-radius: 6px; flex-shrink: 0;">
+                        <a href="${href}" target="_blank" style="color: inherit; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${url}</a>
+                    </li>`;
+                }).join('');
             }
         }
 
         // Initialize and update iframe
-        const classSelect = document.getElementById('homepage-class-select');
         if (classSelect && result.studentInfo && result.studentInfo.classCode) {
             classSelect.value = result.studentInfo.classCode;
         }
-        updateIframeSrc(result.studentInfo);
-
-        // Handle class dropdown change
-        if (classSelect) {
-            classSelect.addEventListener('change', (e) => {
-                const newClassCode = e.target.value;
-                const currentInfo = result.studentInfo || {};
-                currentInfo.classCode = newClassCode;
-                chrome.storage.local.set({ studentInfo: currentInfo }, () => {
-                    updateIframeSrc(currentInfo);
-                    // Refresh whitelist in background and reload page to reflect changes
-                    chrome.runtime.sendMessage({ type: 'refreshWishlist', classCode: newClassCode }, () => {
-                        window.location.reload();
-                    });
-                });
-            });
+        if (admissionInput && result.studentInfo && result.studentInfo.admissionNumber) {
+            admissionInput.value = result.studentInfo.admissionNumber;
         }
+        if (guardianPhoneInput && result.studentInfo && result.studentInfo.guardianPhone) {
+            guardianPhoneInput.value = result.studentInfo.guardianPhone;
+        }
+        updateIframeSrc(result.studentInfo);
     });
 
-    // Fullscreen logic for the quiz
-    const fullscreenBtn = document.getElementById('fullscreen-btn');
-    const quizIframe = document.getElementById('quiz-iframe');
-    if (fullscreenBtn && quizIframe) {
-        fullscreenBtn.addEventListener('click', () => {
-            if (quizIframe.requestFullscreen) {
-                quizIframe.requestFullscreen();
-            } else if (quizIframe.webkitRequestFullscreen) { /* Safari */
-                quizIframe.webkitRequestFullscreen();
-            } else if (quizIframe.msRequestFullscreen) { /* IE11 */
-                quizIframe.msRequestFullscreen();
-            }
-        });
-    }
 });
