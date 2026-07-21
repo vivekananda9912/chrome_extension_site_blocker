@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Collaboration Dashboard</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #74b9ff, #a29bfe);
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    .container {
+      background: #fdfdfd;
+      padding: 30px 40px;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+      width: 100%;
+      max-width: 900px;
+      box-sizing: border-box;
+      text-align: left;
+    }
+    .container.dashboard-container {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      align-items: stretch;
+    }
+    .dashboard-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 12px;
+      border-bottom: 2px solid #e1e8ed;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .dashboard-header h2 {
+      margin: 0;
+      color: #2c3e50;
+      font-size: 22px;
+    }
+    .student-badge-info {
+      font-size: 14px;
+      font-weight: 600;
+      background: #ebf5fb;
+      color: #2980b9;
+      padding: 6px 12px;
+      border-radius: 20px;
+    }
+    .question-card {
+      background: #fff;
+      border: 1px solid #e1e8ed;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 12px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .question-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .question-card h3 {
+      margin: 0 0 8px 0;
+      color: #2c3e50;
+      font-size: 17px;
+    }
+    .question-card p {
+      margin: 4px 0;
+      color: #555;
+      font-size: 13px;
+    }
+    .card-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
+      font-size: 12px;
+      color: #7f8c8d;
+    }
+    .badge {
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-weight: bold;
+      font-size: 11px;
+      text-transform: uppercase;
+      display: inline-block;
+    }
+    .badge.open {
+      background-color: #e8f8f5;
+      color: #2ecc71;
+    }
+    .badge.solved {
+      background-color: #eaeded;
+      color: #7f8c8d;
+    }
+    .split-pane {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+    }
+    .pane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 300px;
+    }
+    .pane label {
+      font-weight: bold;
+      margin-bottom: 5px;
+      color: #34495e;
+    }
+    .code-viewer-panel {
+      background-color: #1e1e1e;
+      color: #d4d4d4;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      padding: 12px;
+      border-radius: 8px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      border: 1px solid #333;
+      height: 300px;
+      box-sizing: border-box;
+    }
+    .code-editor-textarea {
+      background-color: #1e1e1e;
+      color: #fff;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      padding: 12px;
+      border-radius: 8px;
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid #333;
+      height: 300px;
+      resize: vertical;
+    }
+    .diff-container {
+      background-color: #f8f9fa;
+      border: 1px solid #ced4da;
+      border-radius: 8px;
+      padding: 10px;
+      max-height: 350px;
+      overflow-y: auto;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .diff-line {
+      padding: 2px 8px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      display: block;
+    }
+    .diff-line.added {
+      background-color: rgba(46, 204, 113, 0.15);
+      border-left: 4px solid #2ecc71;
+      color: #27ae60;
+    }
+    .diff-line.removed {
+      background-color: rgba(231, 76, 60, 0.15);
+      border-left: 4px solid #e74c3c;
+      color: #c0392b;
+    }
+    .diff-line.unchanged {
+      color: #5f6c76;
+    }
+    .arrow-divider {
+      text-align: center;
+      font-size: 24px;
+      color: #7f8c8d;
+      margin: 10px 0;
+      font-weight: bold;
+    }
+    .detail-card {
+      background: white;
+      border: 1px solid #e1e8ed;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 10px;
+    }
+    .detail-card h4 {
+      margin: 0 0 8px 0;
+      color: #34495e;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .load-more-btn {
+      width: 100%;
+      background: #764ba2;
+      color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      margin-top: 10px;
+      transition: background 0.3s;
+    }
+    .load-more-btn:hover {
+      background: #5b3982;
+    }
+    .response-item {
+      background: #f8fbfe;
+      border: 1px solid #d6e4f0;
+      border-radius: 6px;
+      padding: 10px 15px;
+      margin-top: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .response-meta {
+      font-size: 13px;
+      font-weight: 600;
+      color: #34495e;
+    }
+    .btn {
+      background: #3498db;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.3s;
+    }
+    .btn:hover {
+      background: #2980b9;
+    }
+    .btn-secondary {
+      background: #2ecc71;
+    }
+    .btn-secondary:hover {
+      background: #27ae60;
+    }
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Screen 1: Dashboard Home Screen -->
+  <div id="homeScreen" class="container dashboard-container">
+    <div class="dashboard-header">
+      <h2>Student Dashboard</h2>
+      <div>
+        <span id="dashStudentInfo" class="student-badge-info">Class: - | Roll: -</span>
+        <button id="dashBackToRoles" class="btn btn-secondary" style="padding: 6px 12px; font-size: 13px; margin-left: 5px;">Back</button>
+      </div>
+    </div>
+    <div class="button-group" style="flex-direction: column; gap: 15px; margin-top: 30px;">
+      <button id="goToClassQuestionsBtn" class="btn" style="padding: 15px; font-size: 16px; width: 100%;">Class Questions</button>
+      <button id="goToMyQuestionsBtn" class="btn" style="padding: 15px; font-size: 16px; width: 100%;">My Questions</button>
+    </div>
+  </div>
+
+  <!-- Screen 2: Class Questions Screen -->
+  <div id="classQuestionsScreen" class="container dashboard-container hidden">
+    <div class="dashboard-header">
+      <h2>Class Questions</h2>
+      <div>
+        <button id="backToHomeBtn1" class="btn btn-secondary" style="padding: 6px 12px; font-size: 13px;">← Back</button>
+      </div>
+    </div>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+      <h3 style="margin: 0; color: #34495e;">Open Class Questions</h3>
+      <button id="refreshClassQuestionsBtn" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Refresh</button>
+    </div>
+    <div id="classQuestionsList"></div>
+    <button id="classQuestionsLoadMore" class="load-more-btn hidden">Load More</button>
+  </div>
+
+  <!-- Screen 3: Solving Workspace Screen -->
+  <div id="solvingWorkspaceScreen" class="container dashboard-container hidden" style="max-width: 1000px !important;">
+    <div class="dashboard-header" style="border-bottom: 1px solid #ddd; padding-bottom: 10px; margin-bottom: 15px;">
+      <div style="display: flex; align-items: center; gap: 10px; width: 100%; justify-content: space-between;">
+        <h2 style="margin: 0; font-size: 20px;">Solving Workspace</h2>
+        <button id="cancelAnswerBtn" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">← Back</button>
+      </div>
+    </div>
+    
+    <div id="solvingQuestionMeta" class="detail-card" style="margin-bottom: 15px;">
+      <h4 id="solvingQuestionTitle">CSS Padding</h4>
+      <p id="solvingQuestionDesc" style="margin: 0; color: #555;"></p>
+    </div>
+
+    <div class="split-pane">
+      <div class="pane">
+        <label>Original Code (Read-Only)</label>
+        <div id="originalCodeViewer" class="code-viewer-panel"></div>
+      </div>
+      <div class="pane">
+        <label>Your Corrected Code (Editable)</label>
+        <textarea id="correctedCodeEditor" class="code-editor-textarea" spellcheck="false"></textarea>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 15px;">
+      <label style="font-weight: bold; color: #34495e;">Explanation</label>
+      <textarea id="answerExplanation" placeholder="Explain your corrections here..." style="width: 100%; height: 80px; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-family: sans-serif; box-sizing: border-box; resize: vertical;"></textarea>
+    </div>
+
+    <div class="button-group" style="justify-content: flex-start; gap: 10px;">
+      <button id="submitAnswerBtn" class="btn" style="background-color: #2ecc71;">Submit Answer</button>
+      <button id="cancelAnswerBtn2" class="btn btn-secondary">Cancel</button>
+    </div>
+    <div id="solvingStatus" class="success-message hidden" style="margin-top: 10px;"></div>
+  </div>
+
+  <!-- Screen 4: My Questions Screen -->
+  <div id="myQuestionsScreen" class="container dashboard-container hidden">
+    <div class="dashboard-header">
+      <h2>My Questions</h2>
+      <div>
+        <button id="backToHomeBtn2" class="btn btn-secondary" style="padding: 6px 12px; font-size: 13px;">← Back</button>
+      </div>
+    </div>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+      <h3 style="margin: 0; color: #34495e;">My Questions</h3>
+      <button id="refreshMyQuestionsBtn" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Refresh</button>
+    </div>
+    <div id="myQuestionsList"></div>
+    <button id="myQuestionsLoadMore" class="load-more-btn hidden">Load More</button>
+  </div>
+
+  <!-- Screen 5: View Answers Screen -->
+  <div id="viewAnswersScreen" class="container dashboard-container hidden">
+    <div class="dashboard-header" style="border-bottom: 1px solid #ddd; padding-bottom: 10px; margin-bottom: 15px;">
+      <div style="display: flex; align-items: center; gap: 10px; width: 100%; justify-content: space-between;">
+        <h2 id="myQuestionAnswersTitle" style="margin: 0; font-size: 20px;">Answers to Question</h2>
+        <button id="backToMyQuestionsBtn" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">← Back</button>
+      </div>
+    </div>
+    <div id="myQuestionAnswersList"></div>
+  </div>
+
+  <!-- Screen 6: Answer Viewer Screen -->
+  <div id="answerViewerScreen" class="container dashboard-container hidden" style="max-width: 1000px !important;">
+    <div class="dashboard-header" style="border-bottom: 1px solid #ddd; padding-bottom: 10px; margin-bottom: 15px;">
+      <div style="display: flex; align-items: center; gap: 10px; width: 100%; justify-content: space-between;">
+        <h2 id="viewerQuestionTitle" style="margin: 0; font-size: 20px;">CSS Padding</h2>
+        <button id="backToAnswersListBtn" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">← Back</button>
+      </div>
+    </div>
+    
+    <div id="viewerQuestionMeta" class="detail-card" style="margin-bottom: 15px;">
+      <p id="viewerQuestionDesc" style="margin: 5px 0 10px 0; color: #555; text-align: left;"></p>
+      <div style="display: flex; gap: 15px; flex-wrap: wrap; font-size: 13px; color: #7f8c8d;">
+        <span>Asked By: <strong id="viewAskedBy" style="color: #333;">-</strong></span>
+        <span>Answered By: <strong id="viewAnsweredBy" style="color: #333;">-</strong></span>
+        <span>Status: <strong id="viewStatusDetails" style="color: #333;">-</strong></span>
+      </div>
+    </div>
+
+    <div class="detail-card">
+      <h4>Original Code</h4>
+      <div id="viewOriginalCode" class="code-viewer-panel"></div>
+    </div>
+
+    <div class="arrow-divider">↓</div>
+
+    <div class="detail-card">
+      <h4>Corrected Code</h4>
+      <div id="viewCorrectedCode" class="code-viewer-panel"></div>
+    </div>
+
+    <div class="arrow-divider">↓</div>
+
+    <div class="detail-card">
+      <h4>Highlighted Differences</h4>
+      <div id="viewDiffContainer" class="diff-container"></div>
+    </div>
+
+    <div class="arrow-divider">↓</div>
+
+    <div class="detail-card">
+      <h4>Explanation</h4>
+      <p id="viewExplanation" style="margin: 0; font-size: 14px; white-space: pre-wrap; word-break: break-word; color: #333; text-align: left;"></p>
+    </div>
+
+    <div class="button-group" style="justify-content: flex-start; gap: 10px; margin-top: 15px;">
+      <button id="acceptAnswerBtn" class="btn" style="background-color: #2ecc71;">Accept Answer</button>
+      <button id="backToAnswersListBtn2" class="btn btn-secondary">Back</button>
+    </div>
+    <div id="viewerStatus" class="success-message hidden" style="margin-top: 10px;"></div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="auth.js"></script>
+  <script src="utils.js"></script>
+  <script src="student_dashboard.js"></script>
+</body>
+</html>

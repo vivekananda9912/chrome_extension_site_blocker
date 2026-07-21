@@ -11,6 +11,8 @@ manifest.json
 background.js
 options.html
 options.js
+student_dashboard.html
+student_dashboard.js
 blocked.html
 content.js
 icons/icon16.png
