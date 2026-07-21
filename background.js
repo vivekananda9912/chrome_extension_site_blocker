@@ -79,9 +79,6 @@ async function sendToGA(eventName, eventParams = {}) {
     return false;
   }
 }
-
-
-
 // ==== Firebase direct REST helpers (anonymous auth + write to Firestore) ====
 // We obtain an access_token suitable for Firestore by first doing anonymous
 // sign-in to get a refresh_token, then exchanging it via STS to an access token.
@@ -106,7 +103,6 @@ async function getFirebaseAccessToken() {
       const json = await res.json();
       refreshToken = json.refreshToken;
     }
-
     // Exchange refresh token for Google OAuth access token
     const tokenRes = await fetch(`https://securetoken.googleapis.com/v1/token?key=${encodeURIComponent(apiKey)}`, {
       method: 'POST',
@@ -124,7 +120,6 @@ async function getFirebaseAccessToken() {
     return null;
   }
 }
-
 async function writeLogToFirestore(payload) {
   if (!self.CONFIG || !self.CONFIG.FIREBASE) return;
   const accessToken = await getFirebaseAccessToken();
@@ -186,23 +181,49 @@ function getCodeHelpRequestId({ classCode, rollNumber, pageUrl }) {
     hashString(pageUrl)
   ].join('_');
 }
+function jsToFirestoreValue(value) {
+  if (value === undefined || value === null) return null;
+  if (typeof value === 'boolean') {
+    return { booleanValue: value };
+  }
+  if (typeof value === 'number') {
+    return Number.isInteger(value) ? { integerValue: String(value) } : { doubleValue: value };
+  }
+  if (value instanceof Date) {
+    return { timestampValue: value.toISOString() };
+  }
+  if (typeof value === 'string') {
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
+      return { timestampValue: value };
+    }
+    return { stringValue: value };
+  }
+  if (Array.isArray(value)) {
+    return {
+      arrayValue: {
+        values: value.map(jsToFirestoreValue).filter(Boolean)
+      }
+    };
+  }
+  if (typeof value === 'object') {
+    const fields = {};
+    for (const [k, v] of Object.entries(value)) {
+      const fVal = jsToFirestoreValue(v);
+      if (fVal) fields[k] = fVal;
+    }
+    return { mapValue: { fields } };
+  }
+  return { stringValue: String(value) };
+}
 
 function buildFirestoreFields(data) {
   const fields = {};
-
   Object.entries(data).forEach(([key, value]) => {
-    if (value === undefined || value === null) return;
-    if (typeof value === 'boolean') {
-      fields[key] = { booleanValue: value };
-    } else if (typeof value === 'number') {
-      fields[key] = Number.isInteger(value) ? { integerValue: String(value) } : { doubleValue: value };
-    } else if (value instanceof Date) {
-      fields[key] = { timestampValue: value.toISOString() };
-    } else {
-      fields[key] = { stringValue: String(value) };
+    const fVal = jsToFirestoreValue(value);
+    if (fVal) {
+      fields[key] = fVal;
     }
   });
-
   return fields;
 }
 
@@ -213,6 +234,16 @@ function firestoreValueToJs(value) {
   if ('integerValue' in value) return Number(value.integerValue);
   if ('doubleValue' in value) return Number(value.doubleValue);
   if ('timestampValue' in value) return value.timestampValue;
+  if ('arrayValue' in value) {
+    const vals = value.arrayValue.values || [];
+    return vals.map(firestoreValueToJs);
+  }
+  if ('mapValue' in value) {
+    const fields = value.mapValue.fields || {};
+    return Object.fromEntries(
+      Object.entries(fields).map(([k, v]) => [k, firestoreValueToJs(v)])
+    );
+  }
   return undefined;
 }
 
@@ -221,7 +252,6 @@ function firestoreFieldsToJs(fields = {}) {
     Object.entries(fields).map(([key, value]) => [key, firestoreValueToJs(value)])
   );
 }
-
 async function saveStudentCodeHelpRequest(payload) {
   if (!self.CONFIG || !self.CONFIG.FIREBASE) {
     return { success: false, message: 'Firebase is not configured.' };
@@ -231,7 +261,6 @@ async function saveStudentCodeHelpRequest(payload) {
   if (!accessToken) {
     return { success: false, message: 'Unable to authenticate with Firebase.' };
   }
-
   const projectId = self.CONFIG.FIREBASE.projectId;
   const requestId = getCodeHelpRequestId(payload);
   const endpoint = `${self.CONFIG.FIREBASE.rest.firestoreBase}/projects/${projectId}/databases/(default)/documents/codeHelpRequests/${encodeURIComponent(requestId)}`;
@@ -249,7 +278,6 @@ async function saveStudentCodeHelpRequest(payload) {
     updatedAt: now,
     lastStudentSentAt: now
   });
-
   console.log('[site-blocker] saveStudentCodeHelpRequest writing Firestore document', {
     requestId,
     classCode: payload.classCode,
@@ -257,7 +285,6 @@ async function saveStudentCodeHelpRequest(payload) {
     pageUrl: payload.pageUrl,
     codeLength: String(payload.code || '').length,
   });
-
   const updateMask = Object.keys(fields)
     .map((field) => `updateMask.fieldPaths=${encodeURIComponent(field)}`)
     .join('&');
@@ -355,6 +382,389 @@ async function fetchTeacherCodeHelpResponse(payload) {
     status: fields.status || '',
     updatedAt: fields.updatedAt || ''
   };
+}
+
+async function dbAskClassQuestion(payload) {
+  if (!self.CONFIG || !self.CONFIG.FIREBASE) {
+    return { success: false, message: 'Firebase is not configured.' };
+  }
+  const accessToken = await getFirebaseAccessToken();
+  if (!accessToken) {
+    return { success: false, message: 'Unable to authenticate with Firebase.' };
+  }
+  const projectId = self.CONFIG.FIREBASE.projectId;
+  const endpoint = `${self.CONFIG.FIREBASE.rest.firestoreBase}/projects/${projectId}/databases/(default)/documents/questions`;
+  
+  const fields = buildFirestoreFields({
+    classCode: payload.classCode,
+    rollNumber: payload.rollNumber,
+    questionTitle: payload.questionTitle,
+    questionDescription: payload.questionDescription,
+    studentCode: payload.studentCode,
+    createdTime: new Date(),
+    status: 'Open',
+    repliesCount: 0
+  });
+
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`
+    },
+    body: JSON.stringify({ fields })
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.warn('[dbAskClassQuestion] Firestore write failed', res.status, errorText);
+    return { success: false, message: 'Failed to save question to Firestore.' };
+  }
+
+  const json = await res.json();
+  const nameParts = json.name.split('/');
+  const questionId = nameParts[nameParts.length - 1];
+  return { success: true, questionId };
+}
+
+async function dbFetchOpenQuestions(classCode, limit = 10, offset = 0) {
+  if (!self.CONFIG || !self.CONFIG.FIREBASE) return [];
+  const accessToken = await getFirebaseAccessToken();
+  if (!accessToken) return [];
+  const projectId = self.CONFIG.FIREBASE.projectId;
+  const endpoint = `${self.CONFIG.FIREBASE.rest.firestoreBase}/projects/${projectId}/databases/(default)/documents:runQuery`;
+
+  const queryPayload = {
+    structuredQuery: {
+      from: [{ collectionId: "questions" }],
+      where: {
+        compositeFilter: {
+          op: "AND",
+          filters: [
+            {
+              fieldFilter: {
+                field: { fieldPath: "classCode" },
+                op: "EQUAL",
+                value: { stringValue: classCode }
+              }
+            },
+            {
+              fieldFilter: {
+                field: { fieldPath: "status" },
+                op: "EQUAL",
+                value: { stringValue: "Open" }
+              }
+            }
+          ]
+        }
+      },
+      limit: limit,
+      offset: offset
+    }
+  };
+
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`
+    },
+    body: JSON.stringify(queryPayload)
+  });
+
+  if (!res.ok) {
+    console.warn('[dbFetchOpenQuestions] Firestore query failed', res.status);
+    return [];
+  }
+
+  const data = await res.json();
+  const questions = [];
+  if (Array.isArray(data)) {
+    data.forEach(item => {
+      if (item.document) {
+        const doc = item.document;
+        const fields = firestoreFieldsToJs(doc.fields);
+        const nameParts = doc.name.split('/');
+        const id = nameParts[nameParts.length - 1];
+        questions.push({ id, ...fields });
+      }
+    });
+  }
+
+  questions.sort((a, b) => {
+    const tA = new Date(a.createdTime || 0).getTime();
+    const tB = new Date(b.createdTime || 0).getTime();
+    return tB - tA;
+  });
+
+  return questions;
+}
+
+async function dbSubmitAnswer(payload) {
+  if (!self.CONFIG || !self.CONFIG.FIREBASE) {
+    return { success: false, message: 'Firebase is not configured.' };
+  }
+  const accessToken = await getFirebaseAccessToken();
+  if (!accessToken) {
+    return { success: false, message: 'Unable to authenticate with Firebase.' };
+  }
+  const projectId = self.CONFIG.FIREBASE.projectId;
+  const { questionId, correctedCode, explanation, authorId, authorName } = payload;
+  
+  const endpoint = `${self.CONFIG.FIREBASE.rest.firestoreBase}/projects/${projectId}/databases/(default)/documents/questions/${questionId}/responses`;
+  const fields = buildFirestoreFields({
+    authorType: 'student',
+    authorId,
+    authorName,
+    correctedCode,
+    explanation,
+    timestamp: new Date()
+  });
+
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`
+    },
+    body: JSON.stringify({ fields })
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.warn('[dbSubmitAnswer] Firestore write response failed', res.status, errorText);
+    return { success: false, message: 'Failed to submit response to Firestore.' };
+  }
+
+  const questionEndpoint = `${self.CONFIG.FIREBASE.rest.firestoreBase}/projects/${projectId}/databases/(default)/documents/questions/${questionId}`;
+  const getRes = await fetch(questionEndpoint, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`
+    }
+  });
+
+  if (getRes.ok) {
+    const qData = await getRes.json();
+    const qFields = firestoreFieldsToJs(qData.fields);
+    const currentReplies = Number(qFields.repliesCount || 0);
+    const newReplies = currentReplies + 1;
+
+    const updateFields = buildFirestoreFields({ repliesCount: newReplies });
+    await fetch(`${questionEndpoint}?updateMask.fieldPaths=repliesCount`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      },
+      body: JSON.stringify({ fields: updateFields })
+    });
+  }
+
+  return { success: true };
+}
+
+async function dbFetchMyQuestions(classCode, rollNumber, limit = 10, offset = 0) {
+  if (!self.CONFIG || !self.CONFIG.FIREBASE) return [];
+  const accessToken = await getFirebaseAccessToken();
+  if (!accessToken) return [];
+  const projectId = self.CONFIG.FIREBASE.projectId;
+  const endpoint = `${self.CONFIG.FIREBASE.rest.firestoreBase}/projects/${projectId}/databases/(default)/documents:runQuery`;
+
+  const queryPayload = {
+    structuredQuery: {
+      from: [{ collectionId: "questions" }],
+      where: {
+        compositeFilter: {
+          op: "AND",
+          filters: [
+            {
+              fieldFilter: {
+                field: { fieldPath: "classCode" },
+                op: "EQUAL",
+                value: { stringValue: classCode }
+              }
+            },
+            {
+              fieldFilter: {
+                field: { fieldPath: "rollNumber" },
+                op: "EQUAL",
+                value: { stringValue: rollNumber }
+              }
+            }
+          ]
+        }
+      },
+      limit: limit,
+      offset: offset
+    }
+  };
+
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`
+    },
+    body: JSON.stringify(queryPayload)
+  });
+
+  if (!res.ok) {
+    console.warn('[dbFetchMyQuestions] Firestore query failed', res.status);
+    return [];
+  }
+
+  const data = await res.json();
+  const questions = [];
+  if (Array.isArray(data)) {
+    data.forEach(item => {
+      if (item.document) {
+        const doc = item.document;
+        const fields = firestoreFieldsToJs(doc.fields);
+        const nameParts = doc.name.split('/');
+        const id = nameParts[nameParts.length - 1];
+        questions.push({ id, ...fields });
+      }
+    });
+  }
+
+  questions.sort((a, b) => {
+    const tA = new Date(a.createdTime || 0).getTime();
+    const tB = new Date(b.createdTime || 0).getTime();
+    return tB - tA;
+  });
+
+  return questions;
+}
+
+async function dbFetchQuestionResponses(questionId, limit = 10, offset = 0) {
+  if (!self.CONFIG || !self.CONFIG.FIREBASE) return [];
+  const accessToken = await getFirebaseAccessToken();
+  if (!accessToken) return [];
+  const projectId = self.CONFIG.FIREBASE.projectId;
+  
+  const endpoint = `${self.CONFIG.FIREBASE.rest.firestoreBase}/projects/${projectId}/databases/(default)/documents/questions/${questionId}:runQuery`;
+  const queryPayload = {
+    structuredQuery: {
+      from: [{ collectionId: "responses", allDescendants: false }],
+      limit: limit,
+      offset: offset
+    }
+  };
+
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`
+    },
+    body: JSON.stringify(queryPayload)
+  });
+
+  if (!res.ok) {
+    console.warn('[dbFetchQuestionResponses] Firestore query failed', res.status);
+    return [];
+  }
+
+  const data = await res.json();
+  const responses = [];
+  if (Array.isArray(data)) {
+    data.forEach(item => {
+      if (item.document) {
+        const doc = item.document;
+        const fields = firestoreFieldsToJs(doc.fields);
+        const nameParts = doc.name.split('/');
+        const id = nameParts[nameParts.length - 1];
+        responses.push({ id, ...fields });
+      }
+    });
+  }
+
+  responses.sort((a, b) => {
+    const tA = new Date(a.timestamp || 0).getTime();
+    const tB = new Date(b.timestamp || 0).getTime();
+    return tB - tA;
+  });
+
+  return responses;
+}
+
+async function dbAcceptAnswer(payload) {
+  if (!self.CONFIG || !self.CONFIG.FIREBASE) {
+    return { success: false, message: 'Firebase is not configured.' };
+  }
+  const accessToken = await getFirebaseAccessToken();
+  if (!accessToken) {
+    return { success: false, message: 'Unable to authenticate with Firebase.' };
+  }
+  const projectId = self.CONFIG.FIREBASE.projectId;
+  const { questionId, responseId, helperRollNumber, classCode } = payload;
+
+  const questionEndpoint = `${self.CONFIG.FIREBASE.rest.firestoreBase}/projects/${projectId}/databases/(default)/documents/questions/${questionId}`;
+  const now = new Date();
+  
+  const updateFields = buildFirestoreFields({
+    status: 'Solved',
+    acceptedResponseId: responseId,
+    acceptedBy: helperRollNumber,
+    acceptedAt: now
+  });
+
+  const res = await fetch(`${questionEndpoint}?updateMask.fieldPaths=status&updateMask.fieldPaths=acceptedResponseId&updateMask.fieldPaths=acceptedBy&updateMask.fieldPaths=acceptedAt`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`
+    },
+    body: JSON.stringify({ fields: updateFields })
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.warn('[dbAcceptAnswer] PATCH question failed', res.status, errorText);
+    return { success: false, message: 'Failed to update question status.' };
+  }
+
+  const pointsDocId = sanitizeFirestoreDocId(classCode) + '_' + sanitizeFirestoreDocId(helperRollNumber);
+  const pointsEndpoint = `${self.CONFIG.FIREBASE.rest.firestoreBase}/projects/${projectId}/databases/(default)/documents/studentPoints/${encodeURIComponent(pointsDocId)}`;
+  
+  const pointsRes = await fetch(pointsEndpoint, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`
+    }
+  });
+
+  let currentPoints = 0;
+  let currentSolutions = 0;
+  if (pointsRes.ok) {
+    const pData = await pointsRes.json();
+    const pFields = firestoreFieldsToJs(pData.fields);
+    currentPoints = Number(pFields.points || 0);
+    currentSolutions = Number(pFields.acceptedSolutions || 0);
+  }
+
+  const newPoints = currentPoints + 10;
+  const newSolutions = currentSolutions + 1;
+
+  const ptsFields = buildFirestoreFields({
+    classCode,
+    rollNumber: helperRollNumber,
+    points: newPoints,
+    acceptedSolutions: newSolutions
+  });
+
+  const ptsMask = 'updateMask.fieldPaths=classCode&updateMask.fieldPaths=rollNumber&updateMask.fieldPaths=points&updateMask.fieldPaths=acceptedSolutions';
+  await fetch(`${pointsEndpoint}?${ptsMask}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`
+    },
+    body: JSON.stringify({ fields: ptsFields })
+  });
+
+  return { success: true };
 }
 
 /**
@@ -683,6 +1093,72 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         rollNumber,
       });
       sendResponse(result);
+    } else if (message && message.type === "askClassQuestion") {
+      const { studentInfo = {} } = await chrome.storage.local.get('studentInfo');
+      const classCode = String(studentInfo.classCode || '').trim();
+      const rollNumber = String(studentInfo.rollNumber || '').trim();
+      if (!classCode || !rollNumber) {
+        sendResponse({ success: false, message: 'Set class code and roll number first.' });
+        return;
+      }
+      const result = await dbAskClassQuestion({
+        classCode,
+        rollNumber,
+        questionTitle: message.title,
+        questionDescription: message.description,
+        studentCode: message.code
+      });
+      sendResponse(result);
+    } else if (message && message.type === "fetchOpenQuestions") {
+      const classCode = String(message.classCode || '').trim();
+      const limit = Number(message.limit || 10);
+      const offset = Number(message.offset || 0);
+      const questions = await dbFetchOpenQuestions(classCode, limit, offset);
+      sendResponse({ success: true, questions });
+    } else if (message && message.type === "submitAnswer") {
+      const { studentInfo = {} } = await chrome.storage.local.get('studentInfo');
+      const classCode = String(studentInfo.classCode || '').trim();
+      const rollNumber = String(studentInfo.rollNumber || '').trim();
+      if (!classCode || !rollNumber) {
+        sendResponse({ success: false, message: 'Set class code and roll number first.' });
+        return;
+      }
+      const result = await dbSubmitAnswer({
+        questionId: message.questionId,
+        correctedCode: message.correctedCode,
+        explanation: message.explanation,
+        authorId: rollNumber,
+        authorName: "Roll " + rollNumber
+      });
+      sendResponse(result);
+    } else if (message && message.type === "fetchMyQuestions") {
+      const classCode = String(message.classCode || '').trim();
+      const rollNumber = String(message.rollNumber || '').trim();
+      const limit = Number(message.limit || 10);
+      const offset = Number(message.offset || 0);
+      const questions = await dbFetchMyQuestions(classCode, rollNumber, limit, offset);
+      sendResponse({ success: true, questions });
+    } else if (message && message.type === "fetchQuestionResponses") {
+      const questionId = String(message.questionId || '').trim();
+      const limit = Number(message.limit || 10);
+      const offset = Number(message.offset || 0);
+      const responses = await dbFetchQuestionResponses(questionId, limit, offset);
+      sendResponse({ success: true, responses });
+    } else if (message && message.type === "acceptAnswer") {
+      const { studentInfo = {} } = await chrome.storage.local.get('studentInfo');
+      const classCode = String(studentInfo.classCode || '').trim();
+      const result = await dbAcceptAnswer({
+        questionId: message.questionId,
+        responseId: message.responseId,
+        helperRollNumber: message.helperRollNumber,
+        classCode
+      });
+      sendResponse(result);
+    } else if (message && message.type === "openStudentDashboard") {
+      const tabName = message.tab || "classQuestions";
+      const url = chrome.runtime.getURL(`student_dashboard.html?tab=${tabName}`);
+      chrome.tabs.create({ url });
+      sendResponse({ success: true });
     } else {
       sendResponse(undefined);
     }

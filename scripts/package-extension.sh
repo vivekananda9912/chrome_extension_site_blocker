@@ -18,6 +18,8 @@ zip -r "$ZIP_PATH" \
   blocked.js \
   options.html \
   options.js \
+  student_dashboard.html \
+  student_dashboard.js \
   auth.js \
   utils.js \
   config.js \
