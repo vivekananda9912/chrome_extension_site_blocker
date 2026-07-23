@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const ul = document.getElementById('whitelist-ul');
     const iframe = document.getElementById('quiz-iframe');
     const classSelect = document.getElementById('homepage-class-select');
+    const classCodeInput = document.getElementById('homepage-class-code-input');
     const admissionInput = document.getElementById('homepage-admission-input');
     const guardianPhoneInput = document.getElementById('homepage-guardian-phone-input');
 
@@ -13,7 +14,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 let params = new URLSearchParams();
                 if (info) {
                     if (info.rollNumber) params.append('roll', info.rollNumber);
-                    if (info.classCode) params.append('grade', info.classCode);
+                    const gradeVal = info.grade || info.classCode;
+                    if (gradeVal) params.append('grade', gradeVal);
                     if (info.admissionNumber) params.append('admission', info.admissionNumber);
                     if (info.guardianPhone) params.append('phone', info.guardianPhone);
                 }
@@ -51,7 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Always attach the event listener so it works even when testing locally
     if (classSelect) {
-        classSelect.addEventListener('change', (e) => saveStudentInfo({ classCode: e.target.value }));
+        classSelect.addEventListener('change', (e) => saveStudentInfo({ grade: e.target.value }));
     }
     
     if (admissionInput) {
@@ -60,6 +62,37 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (guardianPhoneInput) {
         guardianPhoneInput.addEventListener('blur', (e) => saveStudentInfo({ guardianPhone: e.target.value.trim() }));
+    }
+
+    if (classCodeInput) {
+        classCodeInput.addEventListener('change', async (e) => {
+            const code = e.target.value.trim();
+            if (!code) return;
+            
+            try {
+                const refreshResponse = await chrome.runtime.sendMessage({ type: 'refreshWishlist', classCode: code });
+                if (!refreshResponse?.success) {
+                    alert(refreshResponse?.message || 'Class code was not found in Firestore.');
+                    // Revert input value to cached class code
+                    chrome.storage.local.get(['studentInfo'], (res) => {
+                        classCodeInput.value = res.studentInfo?.classCode || '';
+                    });
+                    return;
+                }
+                
+                // Save to local storage
+                chrome.storage.local.get(['studentInfo'], (res) => {
+                    const currentInfo = res.studentInfo || {};
+                    currentInfo.classCode = code;
+                    currentInfo.className = refreshResponse.className || '';
+                    chrome.storage.local.set({ studentInfo: currentInfo }, () => {
+                        window.location.reload();
+                    });
+                });
+            } catch (err) {
+                console.error("Error updating class code from homepage:", err);
+            }
+        });
     }
 
     // Fullscreen logic for the quiz
@@ -137,15 +170,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const infoContainer = document.getElementById('homepage-student-info-container');
         if (infoEl && infoContainer && result.studentInfo && result.studentInfo.classCode) {
             const displayClass = result.studentInfo.className || result.studentInfo.classCode;
-            infoEl.textContent = `Class: ${displayClass} | Roll: ${result.studentInfo.rollNumber || '—'}`;
+            infoEl.textContent = `Class: ${displayClass}`;
             infoContainer.style.display = 'flex';
         } else if (infoContainer) {
             infoContainer.style.display = 'none';
         }
 
         // Initialize and update iframe
-        if (classSelect && result.studentInfo && result.studentInfo.classCode) {
-            classSelect.value = result.studentInfo.classCode;
+        if (classSelect && result.studentInfo && result.studentInfo.grade) {
+            classSelect.value = result.studentInfo.grade;
+        }
+        if (classCodeInput && result.studentInfo && result.studentInfo.classCode) {
+            classCodeInput.value = result.studentInfo.classCode;
         }
         if (admissionInput && result.studentInfo && result.studentInfo.admissionNumber) {
             admissionInput.value = result.studentInfo.admissionNumber;
