@@ -132,6 +132,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
+        // Display student badge if configured
+        const infoEl = document.getElementById('homepage-student-info');
+        const infoContainer = document.getElementById('homepage-student-info-container');
+        if (infoEl && infoContainer && result.studentInfo && result.studentInfo.classCode) {
+            const displayClass = result.studentInfo.className || result.studentInfo.classCode;
+            infoEl.textContent = `Class: ${displayClass} | Roll: ${result.studentInfo.rollNumber || '—'}`;
+            infoContainer.style.display = 'flex';
+        } else if (infoContainer) {
+            infoContainer.style.display = 'none';
+        }
+
         // Initialize and update iframe
         if (classSelect && result.studentInfo && result.studentInfo.classCode) {
             classSelect.value = result.studentInfo.classCode;

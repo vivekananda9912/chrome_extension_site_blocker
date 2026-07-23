@@ -616,12 +616,30 @@ async function loadStudentInfo() {
   try {
     const data = await chrome.storage.local.get("studentInfo");
     console.log("[Init] Loaded studentInfo data:", JSON.stringify(data));
-    const studentInfo = data.studentInfo;
+    let studentInfo = data.studentInfo;
     
     if (studentInfo && studentInfo.classCode && studentInfo.rollNumber) {
       const infoEl = $("dashStudentInfo");
       if (infoEl) {
-        infoEl.textContent = `Class: ${studentInfo.classCode} | Roll: ${studentInfo.rollNumber}`;
+        const displayClass = studentInfo.className || studentInfo.classCode;
+        infoEl.textContent = `Class: ${displayClass} | Roll: ${studentInfo.rollNumber}`;
+      }
+
+      // Asynchronously load the updated class name from background (Firestore)
+      try {
+        const response = await chrome.runtime.sendMessage({
+          type: "refreshWishlist",
+          classCode: studentInfo.classCode
+        });
+        if (response && response.success && response.className) {
+          studentInfo.className = response.className;
+          await chrome.storage.local.set({ studentInfo });
+          if (infoEl) {
+            infoEl.textContent = `Class: ${response.className} | Roll: ${studentInfo.rollNumber}`;
+          }
+        }
+      } catch (err) {
+        console.warn("[Init] Failed to refresh class details in background:", err);
       }
       
       // Set initial screen based on tab query parameter

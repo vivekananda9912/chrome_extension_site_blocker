@@ -768,14 +768,16 @@ async function dbAcceptAnswer(payload) {
 }
 
 /**
- * Fetch wishlist from Firestore based on class code
- * Returns array of allowed sites for the class
+ * Fetch class details from Firestore based on class code.
+ * Returns an object with the class name, wishlist array, and a found boolean indicator.
  */
-async function fetchClassWishlist(classCode) {
-  if (!classCode) return [];
+async function fetchClassDetails(classCode) {
+  if (!classCode) return { found: false, wishlist: [], className: "" };
 
   const accessToken = await getFirebaseAccessToken();
-  if (!accessToken || !self.CONFIG || !self.CONFIG.FIREBASE) return [];
+  if (!accessToken || !self.CONFIG || !self.CONFIG.FIREBASE) {
+    return { found: false, wishlist: [], className: "" };
+  }
 
   try {
     const projectId = self.CONFIG.FIREBASE.projectId;
@@ -805,27 +807,31 @@ async function fetchClassWishlist(classCode) {
     });
 
     if (!res.ok) {
-      console.warn('[fetchClassWishlist] Firestore query failed', res.status);
-      return [];
+      console.warn('[fetchClassDetails] Firestore query failed', res.status);
+      return { found: false, wishlist: [], className: "" };
     }
 
     const data = await res.json();
 
-    if (data && Array.isArray(data) && data.length > 0) {
+    if (data && Array.isArray(data) && data.length > 0 && data[0].document) {
       const doc = data[0].document;
       const wishlistField = doc.fields?.wishlist?.arrayValue?.values;
-      if (wishlistField && Array.isArray(wishlistField)) {
-        const wishlist = wishlistField.map(item => item.stringValue).filter(Boolean);
-        console.log('[fetchClassWishlist] Found wishlist for class', classCode, wishlist);
-        return wishlist;
-      }
+      const classNameField = doc.fields?.name?.stringValue;
+
+      const wishlist = wishlistField && Array.isArray(wishlistField)
+        ? wishlistField.map(item => item.stringValue).filter(Boolean)
+        : [];
+      const className = classNameField || "";
+
+      console.log('[fetchClassDetails] Found details for class', classCode, className, wishlist);
+      return { found: true, wishlist, className };
     }
 
-    console.log('[fetchClassWishlist] No wishlist found for class', classCode);
-    return [];
+    console.log('[fetchClassDetails] No class document found for class code', classCode);
+    return { found: false, wishlist: [], className: "" };
   } catch (err) {
-    console.warn('[fetchClassWishlist] error', err);
-    return [];
+    console.warn('[fetchClassDetails] error', err);
+    return { found: false, wishlist: [], className: "" };
   }
 }
 
@@ -857,15 +863,22 @@ async function getCombinedWhitelist() {
       combined = [...combined, ...classWishlistCache.wishlist];
     } else {
       // Fetch fresh wishlist from Firestore
-      console.log('[getCombinedWhitelist] Fetching wishlist for class:', studentInfo.classCode);
-      const classWishlist = await fetchClassWishlist(studentInfo.classCode);
-      combined = [...combined, ...classWishlist];
+      console.log('[getCombinedWhitelist] Fetching details for class:', studentInfo.classCode);
+      const details = await fetchClassDetails(studentInfo.classCode);
+      combined = [...combined, ...details.wishlist];
+
+      // Asynchronously self-heal/update the stored className if we found it
+      if (details.found && details.className && studentInfo.className !== details.className) {
+        studentInfo.className = details.className;
+        await chrome.storage.local.set({ studentInfo });
+      }
 
       // Cache the result
       await chrome.storage.local.set({
         classWishlistCache: {
           classCode: studentInfo.classCode,
-          wishlist: classWishlist,
+          wishlist: details.wishlist,
+          className: details.className,
           timestamp: now
         }
       });
@@ -947,8 +960,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const classCode = requestedClassCode || studentInfo.classCode || '';
 
       if (classCode) {
-        const wishlist = await fetchClassWishlist(classCode);
-        if (!wishlist.length) {
+        const details = await fetchClassDetails(classCode);
+        if (!details.found) {
           sendResponse({
             success: false,
             message: `Class code "${classCode}" was not found in Firestore.`,
@@ -957,15 +970,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           return;
         }
 
+        const { wishlist, className } = details;
+
+        // Retrieve current studentInfo to preserve existing fields like rollNumber
+        const { studentInfo: currentInfo = {} } = await chrome.storage.local.get('studentInfo');
+        const updatedStudentInfo = {
+          ...currentInfo,
+          classCode,
+          className: className || `Class ${classCode}`
+        };
+
         await chrome.storage.local.set({
+          studentInfo: updatedStudentInfo,
           whitelist: withRequiredRules(wishlist),
           classWishlistCache: {
             classCode,
             wishlist,
+            className,
             timestamp: Date.now()
           }
         });
-        sendResponse({ success: true, wishlist, classCode });
+        sendResponse({ success: true, wishlist, classCode, className });
       } else {
         sendResponse({ success: false, message: 'No class code set' });
       }

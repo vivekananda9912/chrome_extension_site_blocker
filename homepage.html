@@ -321,7 +321,20 @@
                 gap: 5px;
             }
         }
+
+        .student-badge-info {
+            font-size: 14px;
+            font-weight: 600;
+            background: #ebf5fb;
+            color: #2980b9;
+            padding: 6px 12px;
+            border-radius: 20px;
+            display: inline-block;
+            border: 1px solid #d6e4f0;
+            text-align: center;
+        }
     </style>
+    <link rel="stylesheet" href="content.css">
 </head>
 
 <body>
@@ -357,6 +370,11 @@
                 <input type="text" id="homepage-guardian-phone-input" placeholder="Guardian Phone"
                     style="padding: 8px 16px; border-radius: 8px; border: 2px solid var(--secondary); font-size: 1rem; color: var(--primary); font-weight: bold; background-color: #eff6ff; outline: none; box-shadow: 0 2px 4px rgba(0,0,0,0.05); width: 200px;">
             </div>
+        </div>
+
+        <!-- Student Info Badge (similar to Student Dashboard) -->
+        <div id="homepage-student-info-container" style="display: none; justify-content: center; margin: 10px 40px 5px;">
+            <span id="homepage-student-info" class="student-badge-info">Class: - | Roll: -</span>
         </div>
 
         <!-- Whitelist Section -->
@@ -462,6 +480,7 @@
     <!-- Script to load config and fetch whitelist from storage -->
     <script src="config.js"></script>
     <script src="homepage.js"></script>
+    <script src="content.js"></script>
 </body>
 
 </html>

@@ -235,7 +235,7 @@ function initFab() {
 
       // Update panel info
       const display = studentInfo.classCode 
-        ? `Class: ${studentInfo.classCode} | Roll: ${studentInfo.rollNumber || '—'} | PC: ${pcCode || '—'}`
+        ? `Class: ${studentInfo.className || studentInfo.classCode} | Roll: ${studentInfo.rollNumber || '—'} | PC: ${pcCode || '—'}`
         : `Class: — | Roll: — | PC: ${pcCode || '—'}`;
 
       document.getElementById('currentInfo').textContent = display;
@@ -289,7 +289,13 @@ function initFab() {
       }
 
       console.debug('[site-blocker] saving studentInfo to chrome.storage.local');
-      await chrome.storage.local.set({ studentInfo: { classCode: code, rollNumber: roll } });
+      await chrome.storage.local.set({
+        studentInfo: {
+          classCode: code,
+          className: refreshResponse.className || '',
+          rollNumber: roll
+        }
+      });
 
       console.debug('[site-blocker] wishlist refresh completed, refreshing panel display');
       await updateDisplay();
