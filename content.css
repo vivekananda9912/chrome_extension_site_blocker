@@ -74,11 +74,20 @@
   }
 }
 
+#labClassPanel,
+#labClassPanel * {
+  box-sizing: border-box;
+}
+
 #labClassPanel {
   position: fixed;
   top: 90px;
   right: 20px;
-  width: 300px;
+  width: 340px;
+  max-height: calc(100vh - 110px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
   background: white;
   border-radius: 12px;
   padding: 20px;
@@ -89,7 +98,27 @@
   gap: 12px;
   color: #333;
   font-family: Arial, sans-serif;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
 }
+
+#labClassPanel::-webkit-scrollbar {
+  width: 6px;
+}
+
+#labClassPanel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#labClassPanel::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+#labClassPanel::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
 
 #labClassPanel .panel-section {
   display: flex;
@@ -199,9 +228,10 @@
 #labClassPanel .close-btn {
   position: absolute;
   top: 8px;
-  right: 8px;
+  right: 12px;
   background: none;
   color: #999;
   font-size: 20px;
   cursor: pointer;
+  line-height: 1;
 }

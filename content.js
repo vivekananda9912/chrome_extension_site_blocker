@@ -1271,26 +1271,45 @@ function showInAppPopup(data) {
   popup.id = 'labClassInAppPopup';
   console.log(`[Step 9] Popup element created.`);
   
-  // High z-index to overlay on any page content
+  const isAnnouncement = data.type === 'announcement';
+  const isAnswer = data.type === 'answer_notification';
+
+  const panel = document.getElementById('labClassPanel');
+  const fab = document.getElementById('labClassFab');
+  const isLeft = (panel && panel.dataset.position === 'left') || (fab && fab.dataset.position === 'left');
+  const isPanelOpen = panel && panel.classList.contains('open');
+
+  const visibleTop = isPanelOpen ? 90 : 20;
+  const visibleOffset = isPanelOpen ? 375 : 140;
+
   popup.style.cssText = `
     position: fixed;
-    top: 20px;
-    right: -450px;
+    top: ${visibleTop}px;
     width: 320px;
+    max-width: calc(100vw - 390px);
     background: #ffffff;
     border-radius: 12px;
     border: 1px solid rgba(0, 0, 0, 0.08);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16), 0 2px 6px rgba(0, 0, 0, 0.06);
     padding: 16px;
     z-index: 2147483647;
     cursor: pointer;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    color: #2c3e50;
-    transition: right 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
+    color: #1e293b;
     box-sizing: border-box;
+    opacity: 0;
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease, right 0.25s ease, left 0.25s ease, top 0.25s ease;
   `;
-  
-  const isAnnouncement = data.type === 'announcement';
+
+  if (isLeft) {
+    popup.style.left = `${visibleOffset}px`;
+    popup.style.right = 'auto';
+    popup.style.transform = 'translateX(-24px)';
+  } else {
+    popup.style.right = `${visibleOffset}px`;
+    popup.style.left = 'auto';
+    popup.style.transform = 'translateX(24px)';
+  }
   
   if (isAnnouncement) {
     const teacherName = data.teacherName || 'Teacher';
@@ -1299,30 +1318,33 @@ function showInAppPopup(data) {
 
     popup.innerHTML = `
       <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; user-select: none;">
-        <span style="font-weight: bold; font-size: 13px; color: #3498db; display: flex; align-items: center; gap: 4px;">
+        <span style="font-weight: bold; font-size: 13px; color: #2563eb; display: flex; align-items: center; gap: 6px;">
           📢 New Announcement
         </span>
-        <span id="closePopupBtn" style="font-size: 20px; font-weight: bold; color: #aaa; cursor: pointer; line-height: 1; padding: 2px 6px; border-radius: 4px; transition: background 0.2s, color 0.2s;">×</span>
+        <span id="closePopupBtn" style="font-size: 20px; font-weight: bold; color: #94a3b8; cursor: pointer; line-height: 1; padding: 2px 6px; border-radius: 4px; transition: background 0.2s, color 0.2s;">×</span>
       </div>
-      <div style="font-size: 11px; color: #7f8c8d; margin-bottom: 4px; user-select: none;">By: <strong>${escapeHtml(teacherName)}</strong></div>
-      <div style="font-weight: 600; font-size: 13px; color: #2c3e50; margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; user-select: none;">Title: ${escapeHtml(annTitle)}</div>
-      <div style="font-size: 11.5px; color: #555; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; margin-bottom: 8px; user-select: none;">${escapeHtml(annDesc)}</div>
-      <div style="font-size: 11px; color: #3498db; font-weight: 500; text-align: center; margin-top: 6px; user-select: none;">Click to view announcement.</div>
+      <div style="font-size: 11.5px; color: #64748b; margin-bottom: 4px; user-select: none;">By: <strong>${escapeHtml(teacherName)}</strong></div>
+      <div style="font-weight: 600; font-size: 13px; color: #1e293b; margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; user-select: none;">${escapeHtml(annTitle)}</div>
+      ${annDesc ? `<div style="font-size: 12px; color: #475569; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; margin-bottom: 8px; user-select: none;">${escapeHtml(annDesc)}</div>` : ''}
+      <div style="font-size: 11px; color: #2563eb; font-weight: 600; display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 8px; user-select: none;">Click to view announcement &rarr;</div>
     `;
   } else if (isAnswer) {
     const solverRoll = data.solverRollNumber || '';
-    const qTitle = data.questionTitle || data.title || 'Untitled';
+    const qTitle = data.questionTitle || data.title || '';
 
     popup.innerHTML = `
       <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; user-select: none;">
-        <span style="font-weight: bold; font-size: 13px; color: #e74c3c; display: flex; align-items: center; gap: 4px;">
-          📩 New Solution Received
+        <span style="font-weight: bold; font-size: 13px; color: #16a34a; display: flex; align-items: center; gap: 6px;">
+          <span style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; background: #16a34a; color: white; border-radius: 4px; font-size: 12px;">✓</span>
+          Your Question Has Been Answered
         </span>
-        <span id="closePopupBtn" style="font-size: 20px; font-weight: bold; color: #aaa; cursor: pointer; line-height: 1; padding: 2px 6px; border-radius: 4px; transition: background 0.2s, color 0.2s;">×</span>
+        <span id="closePopupBtn" style="font-size: 20px; font-weight: bold; color: #94a3b8; cursor: pointer; line-height: 1; padding: 2px 6px; border-radius: 4px; transition: background 0.2s, color 0.2s;">×</span>
       </div>
-      <div style="font-size: 11px; color: #7f8c8d; margin-bottom: 4px; user-select: none;">Solver: <strong>Roll No. ${escapeHtml(solverRoll)}</strong></div>
-      <div style="font-weight: 600; font-size: 13px; color: #2c3e50; margin-bottom: 8px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; user-select: none;">Question: ${escapeHtml(qTitle)}</div>
-      <div style="font-size: 11px; color: #3498db; font-weight: 500; text-align: center; margin-top: 6px; user-select: none;">Click to view solution.</div>
+      <div style="font-size: 12.5px; color: #334155; margin-bottom: 6px; user-select: none;">
+        Roll No. <strong>${escapeHtml(solverRoll)}</strong> has answered your question.
+      </div>
+      ${qTitle ? `<div style="font-weight: 600; font-size: 13px; color: #1e293b; margin-bottom: 8px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; user-select: none;">Question: ${escapeHtml(qTitle)}</div>` : ''}
+      <div style="font-size: 11px; color: #2563eb; font-weight: 600; display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 6px; user-select: none;">Click to view solution &rarr;</div>
     `;
   } else {
     const codeLines = (data.studentCode || '').split('\n');
@@ -1332,14 +1354,15 @@ function showInAppPopup(data) {
 
     popup.innerHTML = `
       <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; user-select: none;">
-        <span style="font-weight: bold; font-size: 13px; color: #e74c3c; display: flex; align-items: center; gap: 4px;">
+        <span style="font-weight: bold; font-size: 13px; color: #ea580c; display: flex; align-items: center; gap: 6px;">
           📢 New Class Question
         </span>
-        <span id="closePopupBtn" style="font-size: 20px; font-weight: bold; color: #aaa; cursor: pointer; line-height: 1; padding: 2px 6px; border-radius: 4px; transition: background 0.2s, color 0.2s;">×</span>
+        <span id="closePopupBtn" style="font-size: 20px; font-weight: bold; color: #94a3b8; cursor: pointer; line-height: 1; padding: 2px 6px; border-radius: 4px; transition: background 0.2s, color 0.2s;">×</span>
       </div>
-      <div style="font-size: 11px; color: #7f8c8d; margin-bottom: 4px; user-select: none;">Asked by: <strong>Roll No. ${escapeHtml(data.rollNumber)}</strong></div>
-      <div style="font-weight: 600; font-size: 13px; color: #2c3e50; margin-bottom: 8px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; user-select: none;">${escapeHtml(data.title)}</div>
-      <pre style="margin: 0; padding: 8px 10px; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px; font-family: 'Courier New', Courier, monospace; font-size: 11px; color: #495057; overflow-x: auto; white-space: pre-wrap; word-break: break-all; max-height: 75px; line-height: 1.4; pointer-events: none;">${escapeHtml(displayedCode)}</pre>
+      <div style="font-size: 11.5px; color: #64748b; margin-bottom: 4px; user-select: none;">Asked by: <strong>Roll No. ${escapeHtml(data.rollNumber)}</strong></div>
+      <div style="font-weight: 600; font-size: 13px; color: #1e293b; margin-bottom: 8px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; user-select: none;">${escapeHtml(data.title)}</div>
+      ${displayedCode ? `<pre style="margin: 0; padding: 8px 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; font-family: 'Courier New', Courier, monospace; font-size: 11px; color: #334155; overflow-x: auto; white-space: pre-wrap; word-break: break-all; max-height: 75px; line-height: 1.4; pointer-events: none;">${escapeHtml(displayedCode)}</pre>` : ''}
+      <div style="font-size: 11px; color: #2563eb; font-weight: 600; display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 6px; user-select: none;">Click to open question &rarr;</div>
     `;
   }
 
@@ -1350,18 +1373,43 @@ function showInAppPopup(data) {
   const closeBtn = popup.querySelector('#closePopupBtn');
   closeBtn.onmouseover = () => {
     closeBtn.style.color = '#333';
-    closeBtn.style.backgroundColor = '#f1f1f1';
+    closeBtn.style.backgroundColor = '#f1f5f9';
   };
   closeBtn.onmouseout = () => {
-    closeBtn.style.color = '#aaa';
+    closeBtn.style.color = '#94a3b8';
     closeBtn.style.backgroundColor = 'transparent';
   };
 
   // Slide in
   setTimeout(() => {
-    popup.style.right = '20px';
-    console.log(`[Step 9] Popup visible.`);
-  }, 50);
+    popup.style.opacity = '1';
+    popup.style.transform = 'translateX(0)';
+    console.log(`[Step 9] Popup visible on side of floating panel.`);
+  }, 40);
+
+  // Dynamic position updater when panel or FAB is clicked/toggled
+  function updatePopupPosition() {
+    setTimeout(() => {
+      const isNowLeft = (panel && panel.dataset.position === 'left') || (fab && fab.dataset.position === 'left');
+      const isNowOpen = panel && panel.classList.contains('open');
+      const nowTop = isNowOpen ? 90 : 20;
+      const nowOffset = isNowOpen ? 375 : 140;
+      popup.style.top = `${nowTop}px`;
+      if (isNowLeft) {
+        popup.style.left = `${nowOffset}px`;
+        popup.style.right = 'auto';
+      } else {
+        popup.style.right = `${nowOffset}px`;
+        popup.style.left = 'auto';
+      }
+    }, 20);
+  }
+
+  fab?.addEventListener('click', updatePopupPosition);
+  const panelCloseBtn = document.querySelector('#labClassPanel .close-btn');
+  panelCloseBtn?.addEventListener('click', updatePopupPosition);
+  const toggleFabBtn = document.getElementById('toggleFabPositionBtn');
+  toggleFabBtn?.addEventListener('click', updatePopupPosition);
 
   // Auto-close timer mechanics
   const autoCloseDuration = 9000; // 9 seconds
@@ -1391,7 +1439,7 @@ function showInAppPopup(data) {
   popup.addEventListener('mouseenter', pauseAutoClose);
   popup.addEventListener('mouseleave', resumeAutoClose);
 
-  // Click handler to open/focus dashboard question editor
+  // Click handler to open/focus dashboard
   popup.addEventListener('click', (event) => {
     if (event.target === closeBtn || closeBtn.contains(event.target)) return;
     
@@ -1423,16 +1471,24 @@ function showInAppPopup(data) {
     clearTimeout(autoCloseTimer);
     popup.removeEventListener('mouseenter', pauseAutoClose);
     popup.removeEventListener('mouseleave', resumeAutoClose);
+    fab?.removeEventListener('click', updatePopupPosition);
+    panelCloseBtn?.removeEventListener('click', updatePopupPosition);
+    toggleFabBtn?.removeEventListener('click', updatePopupPosition);
     
-    // Slide out to the right
-    popup.style.right = '-450px';
+    // Slide out
+    popup.style.opacity = '0';
+    if (isLeft) {
+      popup.style.transform = 'translateX(-24px)';
+    } else {
+      popup.style.transform = 'translateX(24px)';
+    }
     
     // Cleanup DOM and process next popup
     setTimeout(() => {
       popup.remove();
       isPopupActive = false;
       processQuestionPopupQueue();
-    }, 450);
+    }, 280);
   }
 }
 

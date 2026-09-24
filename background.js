@@ -2245,28 +2245,9 @@ async function handleIncomingPushData(data) {
     ? `${data.questionId}|${data.answerId}` 
     : (data.type === 'announcement' ? `announcement|${data.announcementId}` : String(data.questionId || 'fcm_alert_' + Date.now()));
   
-  // Await the creation of the notification to prevent service worker premature termination
-  await new Promise((resolve) => {
-    console.log('[FCM Service Worker] Creating desktop notification...');
-    chrome.notifications.create(notificationId, notificationOptions, (id) => {
-      console.log('[FCM Service Worker] Notification ID:', id);
-      if (chrome.runtime.lastError) {
-        console.log('[FCM Service Worker] Success: false');
-        console.log('[FCM Service Worker] Failure: true');
-        console.error('[FCM Service Worker] Runtime error:', chrome.runtime.lastError.message);
-      } else {
-        console.log('[FCM Service Worker] Success: true');
-        console.log('[FCM Service Worker] Failure: false');
-        console.log('[FCM Service Worker] Runtime error: none');
-        console.log('[FCM Service Worker] Notification creation success.');
-      }
-      // Auto dismiss after 7 seconds
-      setTimeout(() => {
-        chrome.notifications.clear(id);
-      }, 7000);
-      resolve();
-    });
-  });
+  // Desktop notification is suppressed in favor of the floating panel notification on page
+  console.log('[FCM Service Worker] In-page floating panel notification preferred for:', notificationId);
+
   
   // Broadcast to any active client sidebars
   broadcastToActiveTabs({ type: 'push_received', data });
@@ -2411,12 +2392,12 @@ function broadcastToActiveTabs(message) {
   console.log(`Payload:`, JSON.stringify(message, null, 2));
 
   chrome.tabs.query({}, (tabs) => {
-    const httpTabs = tabs.filter(tab => tab.url && (tab.url.startsWith('http://') || tab.url.startsWith('https://')));
-    if (httpTabs.length === 0) {
-      console.warn(`[Step 8] Send failure: No matching tab found (no HTTP/HTTPS tabs are open).`);
+    const targetTabs = tabs.filter(tab => tab.url && (tab.url.startsWith('http://') || tab.url.startsWith('https://') || tab.url.startsWith('chrome-extension://')));
+    if (targetTabs.length === 0) {
+      console.warn(`[Step 8] Send failure: No matching tab found (no HTTP/HTTPS/extension tabs are open).`);
     }
 
-    httpTabs.forEach((tab) => {
+    targetTabs.forEach((tab) => {
       console.log(`[Step 8] Sending message to Target tab: ID ${tab.id} (${tab.url})`);
       chrome.tabs.sendMessage(tab.id, message)
         .then(() => {

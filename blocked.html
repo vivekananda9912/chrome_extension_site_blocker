@@ -9,7 +9,43 @@
     .card { background: #fff; padding: 28px; margin: 30px auto; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.08); max-width:700px; }
     h1 { margin-top:0; color:#d33; }
     p { color:#555; }
-    a.button { display:inline-block; margin-top:18px; padding:10px 16px; border-radius:6px; text-decoration:none; background:#2b7de9; color:white; }
+    .btn-group {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 22px;
+      flex-wrap: wrap;
+    }
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 18px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: background 0.15s ease, transform 0.1s ease;
+    }
+    .button:active {
+      transform: scale(0.98);
+    }
+    .btn-secondary {
+      background: #64748b;
+      color: white;
+    }
+    .btn-secondary:hover {
+      background: #475569;
+    }
+    .btn-primary {
+      background: #2b7de9;
+      color: white;
+    }
+    .btn-primary:hover {
+      background: #1f68ca;
+    }
     .url { font-family: monospace; color:#036; display:block; margin-top:8px; }
   </style>
 </head>
@@ -18,7 +54,10 @@
     <h1>Blocked by Lab Policy</h1>
     <p>The page you tried to visit is not allowed on this machine. If you believe this is an error, please contact your lab administrator.</p>
     <div id="orig"></div>
-    <a class="button" href="#" id="goBack">Go Back</a>
+    <div class="btn-group">
+      <button type="button" class="button btn-secondary" id="goBackPrevious">Go Back Previous</button>
+      <button type="button" class="button btn-primary" id="goBackHome">Go Back Home</button>
+    </div>
   </div>
   <script src="content.js"></script>
   <!-- External script (no inline JS) -->
